@@ -336,11 +336,10 @@ stages:
 # Stage 5: Deploy to Azure Functions
 # ------------------------------------------------------------
 
-- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
+- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
     - ${{ if ne(env.name, 'prod') }}:
       - template: ../stages/deploy/deploy-on-azure-functions.yml
-        condition: and(succeeded(), ne(variables['Build.SourceBranch'], 'refs/heads/main'))
         parameters:
           stageName: 'Deploy'
           stageDisplayName: 'Deploy to Azure Function App'
@@ -353,11 +352,10 @@ stages:
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.BuildId).zip'
 
-- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
+- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
     - ${{ if eq(env.name, 'prod') }}:
       - template: ../stages/deploy/deploy-on-azure-functions.yml
-        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
         parameters:
           stageName: 'Deploy'
           stageDisplayName: 'Deploy to Azure Function App'
