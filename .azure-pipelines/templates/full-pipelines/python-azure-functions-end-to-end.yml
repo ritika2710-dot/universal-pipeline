@@ -345,7 +345,7 @@ stages:
           stageDisplayName: 'Deploy to Azure Function App'
           jobName: 'DeployFunctionApp'
           jobDisplayName: 'Deploy Azure Function App'
-          environment: ${{ parameters.environment }} 
+          environment: ${{ env.name }} 
           azureSubscription:  ${{ parameters.azureSubscriptionServiceConnection }} 
           appType: 'functionAppLinux'
           appName: ${{ parameters.functionAppName }} 
