@@ -1,0 +1,125 @@
+parameters:
+  - name: javaVersion
+    type: string
+    default: '17'
+
+  - name: buildTool
+    type: string
+    default: 'maven'   # maven | gradle
+
+  - name: workingDirectory
+    type: string
+    default: '.'
+
+  - name: mavenPomFile
+    type: string
+    default: 'pom.xml'
+
+  - name: gradleWrapper
+    type: string
+    default: './gradlew'
+
+  - name: testResultsPath
+    type: string
+    default: 'junit/test-results.xml'
+
+  - name: archiveFileName
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)/$(Build.SourceVersion).zip'
+
+  - name: artifactName
+    type: string
+    default: 'Build-Drop'
+
+  - name: isContainerized
+    type: boolean
+    default: false
+
+stages:
+- stage: BuildStage
+  displayName: "Stage 2 - Build & Test"
+  jobs:
+  - job: BuildJob
+    displayName: Build & Test
+    steps:
+    - checkout: self
+      fetchDepth: 1
+
+    # Step 1: Use Java
+    - task: JavaToolInstaller@0
+      displayName: Use Java ${{ parameters.javaVersion }}
+      inputs:
+        versionSpec: ${{ parameters.javaVersion }}
+        jdkArchitectureOption: x64
+        jdkSourceOption: PreInstalled
+
+    # Step 2: Build & Test (Maven)
+    - ${{ if eq(parameters.buildTool, 'maven') }}:
+      - task: Maven@3
+        displayName: Maven Build & Test
+        inputs:
+          mavenPomFile: '${{ parameters.mavenPomFile }}'
+          goals: 'clean verify'
+          options: '-DskipTests=false'
+          javaHomeOption: 'JDKVersion'
+          jdkVersionOption: ${{ parameters.javaVersion }}
+          publishJUnitResults: true
+          testResultsFiles: '**/surefire-reports/*.xml'
+          workingDirectory: ${{ parameters.workingDirectory }}
+
+    # Step 3: Build & Test (Gradle)
+    - ${{ if eq(parameters.buildTool, 'gradle') }}:
+      - task: Bash@3
+        displayName: Gradle Build & Test
+        inputs:
+          targetType: inline
+          workingDirectory: ${{ parameters.workingDirectory }}
+          script: |
+            chmod +x ${{ parameters.gradleWrapper }}
+            ${{ parameters.gradleWrapper }} clean build
+
+    # Step 4: Handle No Tests Gracefully
+    - task: Bash@3
+      displayName: Normalize Test Results (Graceful No-Tests)
+      inputs:
+        targetType: inline
+        script: |
+          if ls **/surefire-reports/*.xml 1> /dev/null 2>&1; then
+            echo "JUnit test results found."
+          else
+            echo "##vso[task.logissue type=warning]No tests found. Creating placeholder result."
+            mkdir -p $(dirname ${{ parameters.testResultsPath }})
+            echo '<testsuite name="no-tests" tests="0" errors="0" failures="0" skipped="0"></testsuite>' \
+              > ${{ parameters.testResultsPath }}
+          fi
+
+    # Step 5: Publish Test Results
+    - task: PublishTestResults@2
+      displayName: Publish Test Results
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '**/*.xml'
+        failTaskOnFailedTests: true
+      condition: succeededOrFailed()
+
+    # Step 6: Archive JAR
+    - ${{ if and(eq(parameters.isContainerized, false), ne(variables['Build.Reason'], 'PullRequest')) }}:
+      - task: ArchiveFiles@2
+        displayName: Archive Application Artifact
+        inputs:
+          rootFolderOrFile: |
+            target/*.jar
+            build/libs/*.jar
+          includeRootFolder: false
+          archiveType: 'zip'
+          archiveFile: '${{ parameters.archiveFileName }}'
+          replaceExistingArchive: true
+
+    # Step 7: Publish Artifact
+    - ${{ if and(eq(parameters.isContainerized, false), ne(variables['Build.Reason'], 'PullRequest')) }}:
+      - task: PublishBuildArtifacts@1
+        displayName: Publish Artifact ${{ parameters.artifactName }}
+        inputs:
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+          ArtifactName: '${{ parameters.artifactName }}'
+          publishLocation: 'Container'

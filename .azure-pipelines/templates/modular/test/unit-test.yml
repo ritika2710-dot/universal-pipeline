@@ -1,0 +1,80 @@
+# Modular Unit Test Template
+# Path: .azure-pipelines/templates/modular/test/unit-test.yml
+
+parameters:
+- name: pythonVersion
+  type: string
+  default: '3.11'
+- name: workingDirectory
+  type: string
+  default: '$(System.DefaultWorkingDirectory)'
+- name: testFramework
+  type: string
+  default: 'pytest'
+  values:
+  - pytest
+  - unittest
+- name: testPath
+  type: string
+  default: 'tests/'
+- name: coverageThreshold
+  type: number
+  default: 80
+- name: publishTestResults
+  type: boolean
+  default: true
+- name: publishCoverage
+  type: boolean
+  default: true
+
+steps:
+- ${{ if eq(parameters.testFramework, 'pytest') }}:
+  - script: |
+      pip install pytest pytest-cov pytest-azurepipelines
+    displayName: 'Install pytest and coverage tools'
+    workingDirectory: '${{ parameters.workingDirectory }}'
+
+  - script: |
+      pytest ${{ parameters.testPath }} \
+        --junitxml=$(Build.StagingDirectory)/test-results.xml \
+        --cov=. \
+        --cov-report=xml:$(Build.StagingDirectory)/coverage.xml \
+        --cov-report=html:$(Build.StagingDirectory)/htmlcov \
+        --cov-fail-under=${{ parameters.coverageThreshold }}
+    displayName: 'Run pytest with coverage'
+    workingDirectory: '${{ parameters.workingDirectory }}'
+    continueOnError: true
+
+- ${{ if eq(parameters.testFramework, 'unittest') }}:
+  - script: |
+      pip install coverage
+    displayName: 'Install coverage'
+    workingDirectory: '${{ parameters.workingDirectory }}'
+
+  - script: |
+      coverage run -m unittest discover -s ${{ parameters.testPath }}
+      coverage xml -o $(Build.StagingDirectory)/coverage.xml
+      coverage html -d $(Build.StagingDirectory)/htmlcov
+    displayName: 'Run unittest with coverage'
+    workingDirectory: '${{ parameters.workingDirectory }}'
+    continueOnError: true
+
+- ${{ if eq(parameters.publishTestResults, true) }}:
+  - task: PublishTestResults@2
+    displayName: 'Publish test results'
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '$(Build.StagingDirectory)/test-results.xml'
+      failTaskOnFailedTests: true
+      testRunTitle: 'Unit Tests - Python ${{ parameters.pythonVersion }}'
+    condition: succeededOrFailed()
+
+- ${{ if eq(parameters.publishCoverage, true) }}:
+  - task: PublishCodeCoverageResults@2
+    displayName: 'Publish code coverage'
+    inputs:
+      codeCoverageTool: 'Cobertura'
+      summaryFileLocation: '$(Build.StagingDirectory)/coverage.xml'
+      reportDirectory: '$(Build.StagingDirectory)/htmlcov'
+      failIfCoverageEmpty: false
+    condition: succeededOrFailed()

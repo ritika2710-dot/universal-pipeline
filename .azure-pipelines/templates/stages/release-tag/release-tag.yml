@@ -1,0 +1,143 @@
+# templates/release-tag.yml
+parameters:
+  - name: stageName
+    type: string
+    default: 'ReleaseTagStage'
+
+  - name: displayName
+    type: string
+    default: 'Stage - Release Tagging'
+
+  - name: releaseType
+    type: string
+    default: 'patch'
+
+#  - name: dependsOn
+#    type: string
+#    default: 'ManualApprovalStage1'
+
+  # - name: allowedUsers
+  #   type: string
+  #   default: ''
+
+  - name: releaseTagBranch
+    type: string
+    default: 'main'
+
+stages:
+- stage: ${{ parameters.stageName }}
+  displayName: ${{ parameters.displayName }}
+#  dependsOn: ${{ parameters.dependsOn }}
+  jobs:
+    - job: TagReleaseJob
+      displayName: "Job Validate User and Tag Release"
+      steps:
+        - checkout: self
+          persistCredentials: true
+          fetchTags: true
+
+        # - script: |
+        #     echo "Validating user who triggered the pipeline..."
+
+        #     REQUESTED_USER="$(Build.RequestedFor)"
+        #     echo "Triggered by: $REQUESTED_USER"
+        #     echo $ALLOWED_USERS_LIST
+
+        #     #ALLOWED_USERS=(${ALLOWED_USERS_LIST})
+        #     ALLOWED_USERS=($ALLOWED_USERS_LIST)
+        #     IS_ALLOWED=false
+        #     for user in "${ALLOWED_USERS[@]}"; do
+        #       if [[ "$REQUESTED_USER" == "$user" ]]; then
+        #         IS_ALLOWED=true
+        #         echo $user
+        #         break
+        #       fi
+        #     done
+
+        #     if [[ "$IS_ALLOWED" != "true" ]]; then
+        #       echo "ERROR: User '$REQUESTED_USER' is not authorized to run this pipeline."
+        #       exit 1
+        #     fi
+
+        #     echo "User '$REQUESTED_USER' is authorized."
+        #   displayName: 'Validate Triggering User'
+        #   env:
+        #     ALLOWED_USERS_LIST: "${{ join(parameters.allowedUsers, ' ') }}"
+
+        - script: |
+            echo "Getting the latest valid semantic version tag..."
+
+            git fetch --tags
+
+            LATEST_TAG=""
+            for tag in $(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'); do
+              VERSION="${tag#v}"
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+              if [ "$PATCH" -lt 1000 ]; then
+                LATEST_TAG=$tag
+                break
+              fi
+            done
+
+            echo "Latest valid tag: $LATEST_TAG"
+
+            if [ -z "$LATEST_TAG" ]; then
+              MAJOR=0
+              MINOR=0
+              PATCH=0
+            else
+              VERSION="${LATEST_TAG#v}"
+              IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+            fi
+
+            echo "Current version: $MAJOR.$MINOR.$PATCH"
+
+            # Determine what to bump (default = patch)
+            RELEASE_TYPE="${RELEASE_TYPE:-patch}"
+            echo "Version bump type: $RELEASE_TYPE"
+
+            case "$RELEASE_TYPE" in
+              major)
+                MAJOR=$((MAJOR + 1))
+                MINOR=0
+                PATCH=0
+                ;;
+              minor)
+                MINOR=$((MINOR + 1))
+                PATCH=0
+                ;;
+              patch)
+                PATCH=$((PATCH + 1))
+                ;;
+              *)
+                echo "Invalid RELEASE_TYPE value: $RELEASE_TYPE"
+                exit 1
+                ;;
+            esac
+
+            NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+            echo "New tag to create: $NEW_TAG"
+            echo "##vso[task.setvariable variable=new_tag]$NEW_TAG"
+          displayName: "Auto-calculate New Semantic Version"
+          env:
+            RELEASE_TYPE: ${{ parameters.releaseType }}
+
+
+        - script: |
+            echo "Configuring Git user..."
+            git config user.name "Azure DevOps Build Service"
+            git config user.email "ado-build-service-bot@unilever.com"
+
+            echo "Fetching branch..."
+            git fetch origin ${{ parameters.releaseTagBranch }}
+            git checkout ${{ parameters.releaseTagBranch }}
+            git pull origin ${{ parameters.releaseTagBranch }}
+
+            echo "Checking for existing tag..."
+            git fetch --tags
+            echo "Creating annotated tag: $(new_tag)"
+            git tag -a "$(new_tag)" -m "Release $(new_tag)"
+
+            echo "Pushing tag to origin..."
+            git push origin $(new_tag)
+          displayName: "Create and Push New Git Tag in ADO Repo"

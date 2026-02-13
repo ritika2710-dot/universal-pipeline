@@ -1,0 +1,485 @@
+# stages/scan/Cov-dotnet-quality-and-security-scan.yml
+parameters:
+  - name: dotnetVersion
+    type: string
+    default: '9.0.x'
+
+#SonarQube Parameters
+  - name: sonarQubeServiceConnection
+    type: string
+    default: ''
+
+  - name: sonarQubeProjectKey
+    type: string
+    default: ''
+
+  - name: sonarQubeUrl
+    type: string
+    default: ''
+
+  - name: sonarQubeToken
+    type: string
+    default: ''
+
+  - name: sonarReportArtifactName
+    type: string
+    default: 'SonarQube-Reports'
+
+  - name: branchName
+    type: string
+    default: $(Build.SourceBranch)
+
+  - name: branchFilter
+    type: string
+    default: 'refs/heads/main'
+
+  - name: coverageReportPath
+    type: string
+    default: 'coverage.cobertura.xml'
+
+  - name: testResultsPath
+    type: string
+    default: 'TestResults/test-results.trx'
+
+# Wiz Parameters
+  - name: wizClientId
+    type: string
+    default: ''
+  
+  - name: wizClientSecret
+    type: string
+    default: ''
+
+  - name: wizServiceConnection
+    type: string
+    default: ''
+
+  - name: wizScanPolicies
+    type: string
+    default: "Fail-on-Medium-Vulns, Default vulnerabilities policy"
+
+  - name: wizFailOnSeverity
+    type: string
+    default: 'Medium'
+
+  - name: wizPolicyHitsOnly
+    type: boolean
+    default: false
+    
+  - name: wizSucceedOnFailures
+    type: boolean
+    default: false
+
+  - name: wizContainerSucceedOnFailures
+    type: boolean
+    default: false
+  
+  - name: wizContainerimage
+    type: string
+    default: ''
+  
+  - name: wizContainerpolicyHitsOnly
+    type: boolean
+    default: true
+
+  - name: wizContainerfileHashesScan
+    type: boolean
+    default: true
+
+# Containarized Application
+
+  - name: isContainerized
+    type: boolean
+    default: false
+
+  - name: Dockerfile
+    type: string
+    default: '**/Dockerfile'
+
+  - name: dockerBuildContext
+    type: string
+    default: '.'
+
+  - name: dockerRepository
+    type: string
+    default: ''
+
+  - name: dockerTags
+    type: string
+    default: 'latest'
+
+stages:
+- stage: CodeQualityStage
+  displayName: "Stage 3 - Code Quality & Code Coverage"
+  variables:
+    - name: sonarReportFilenamePR
+      value: 'SonarScan-PR-$(System.PullRequest.PullRequestId).pdf'
+    - name: sonarReportFilenameBuild
+      value: 'SonarScan-Build-$(Build.BuildId).pdf'
+      
+  jobs:
+    - job: SonarQubeCodeQuality
+      displayName: 'SonarQube Code Quality Check + Wiz Security Scan + Reports'
+      steps:
+
+        # Step 1: Use .NET 9
+#        - task: UseDotNet@2
+#          displayName: 'Use .NET ${{ parameters.dotnetVersion }}'
+#          inputs:
+#            packageType: 'sdk'
+#            version: ${{ parameters.dotnetVersion }}
+
+        # Step 2: Restore NuGet packages
+#        - task: DotNetCoreCLI@2
+#          displayName: 'Restore NuGet Packages'
+#          inputs:
+#            command: 'restore'
+#            projects: '**/*.csproj'
+
+        # Step 3: Build Solution
+#        - task: DotNetCoreCLI@2
+#          displayName: 'Build Solution'
+#          inputs:
+#            command: 'build'
+#            projects: '**/*.csproj'
+#            arguments: '--configuration Release'
+
+        # Step 4: Run Tests with Coverage (gracefully handle no tests)
+#        - task: DotNetCoreCLI@2
+#          displayName: 'Run Tests with Coverage'
+#          inputs:
+#            command: 'test'
+#            projects: '**/*Tests.csproj'
+#            arguments: '--configuration Release --logger trx --results-directory $(Build.SourcesDirectory)/TestResults /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=$(Agent.TempDirectory)/coverage/coverage.xml'
+#          continueOnError: true
+
+        # Step 5: Publish Test Result report to Azure DevOps
+        - task: PublishTestResults@2
+          inputs:
+            testResultsFormat: 'VSTest'
+            testResultsFiles: '**/*.trx'
+            failTaskOnFailedTests: true
+          condition: succeededOrFailed()
+          displayName: 'Publish Test Results to Azure DevOps'
+
+        # Step 6: Install ReportGenerator
+#        - script: dotnet tool install -g dotnet-reportgenerator-globaltool
+#          displayName: "Install ReportGenerator"
+
+        # Step 7: Convert Coverlet → Cobertura.xml using ReportGenerator
+#        - script: |
+#            reportgenerator ^
+#              -reports:$(Agent.TempDirectory)/coverage/coverage.xml ^
+#              -targetdir:$(Build.SourcesDirectory)/CodeCoverage ^
+#              -reporttypes:Cobertura
+#          displayName: "Generate Cobertura coverage report"
+
+        # Step 8: Publish Code Coverage Result to Azure DevOps
+        - task: PublishCodeCoverageResults@2
+          displayName: "Publish Coverage Report to Azure DevOps"
+          condition: succeededOrFailed()
+          inputs:
+            codeCoverageTool: Cobertura
+            summaryFileLocation: $(Build.SourcesDirectory)/CodeCoverage/Cobertura.xml
+            reportDirectory: $(Build.SourcesDirectory)/CodeCoverage        
+
+        # Step 9: SonarQube Prepare
+        - task: SonarQubePrepare@7
+          displayName: Prepare SonarQube Analysis
+          inputs:
+            SonarQube: ${{ parameters.sonarQubeServiceConnection }}
+            scannerMode: 'CLI'
+            configMode: 'manual'
+            cliProjectKey: ${{ parameters.sonarQubeProjectKey }}
+            extraProperties: |
+              sonar.projectVersion=1.0
+              sonar.dotnet.version=${{ parameters.dotnetVersion }}
+              sonar.sources=.
+              sonar.language=cs
+              sonar.sourceEncoding=UTF-8
+              sonar.exclusions=**/obj/**,**/bin/**,**/TestResults/**
+#              sonar.coverageReportPaths=$(Build.SourcesDirectory)/CodeCoverage/Cobertura.xml
+#              sonar.cs.opencover.reportsPaths=$(Build.SourcesDirectory)/CodeCoverage/Cobertura.xml
+#              sonar.qualitygate.wait=true
+
+        # Step 10: SonarQube Analyze
+        - task: SonarQubeAnalyze@7
+          displayName: Run SonarQube Analysis
+
+        # Step 11: Publish SonarQube Quality Gate Results
+        - task: SonarQubePublish@7
+          inputs:
+            pollingTimeoutSec: '300'
+          displayName: Publish SonarQube Quality Gate
+
+        # Step 12: Publish Code Coverage Results
+        - task: PublishCodeCoverageResults@2
+          inputs:
+            codeCoverageTool: 'Cobertura'
+            summaryFileLocation: $(Build.SourcesDirectory)/CodeCoverage/Cobertura.xml
+          condition: succeededOrFailed()
+          displayName: 'Publish Code Coverage to Azure DevOps'
+
+        #Step 13: Download SonarQube PR issues
+        - powershell: |
+            Write-Host "=== SonarQube PR Report (Windows single-script) ==="
+
+            python --version
+            pip --version
+
+            pip install --quiet openpyxl requests reportlab
+
+            Write-Host "Pull Request ID: $env:SYSTEM_PULLREQUEST_PULLREQUESTID"
+
+            # Run inline Python by piping here-string to python stdin
+            @"
+            import json
+            import requests
+            import os
+            from datetime import datetime
+            from reportlab.lib import colors
+            from reportlab.lib.pagesizes import A4, landscape
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+            # Inputs
+            sonar_host = "${{ parameters.sonarQubeUrl }}"
+            token = "${{ parameters.sonarQubeToken }}"
+            project = "${{ parameters.sonarQubeProjectKey }}"
+            pr_id = os.getenv("SYSTEM_PULLREQUEST_PULLREQUESTID")
+
+            print(f"Pull Request ID: {pr_id}")
+
+            # Fetch issues
+            print(f"Fetching issues for PR {pr_id}...")
+            url = f"{sonar_host}/api/issues/search?pullRequest={pr_id}&componentKeys={project}&types=BUG,VULNERABILITY,CODE_SMELL&ps=500"
+            print(f"Requesting: {url}")
+
+            resp = requests.get(url, auth=(token, ""))
+            data = resp.json()
+
+            headers = ["Severity", "Type", "Message", "File", "Line", "Rule", "Effort", "Created"]
+            components = {c["key"]: c for c in data.get("components", [])}
+
+            rows = []
+            for issue in data.get("issues", []):
+                file_key = issue.get("component", "")
+                file_path = components.get(file_key, {}).get("path", "Unknown")
+                rows.append([
+                    issue.get("severity", ""),
+                    issue.get("type", ""),
+                    issue.get("message", ""),
+                    file_path,
+                    issue.get("line", ""),
+                    issue.get("rule", ""),
+                    issue.get("effort", ""),
+                    issue.get("creationDate", "")
+                ])
+
+            if not rows:
+                rows.append(["-", "-", "No issues found for this PR", "-", "-", "-", "-", "-"])
+
+            filename = os.getenv("sonarReportFilenamePR", "SonarScan-PR.pdf")
+            print(f"Saving report as {filename}...")
+
+            doc = SimpleDocTemplate(filename, pagesize=landscape(A4),
+                                    leftMargin=20, rightMargin=20,
+                                    topMargin=20, bottomMargin=20)
+
+            elements = []
+            styles = getSampleStyleSheet()
+
+            title = Paragraph(f"<b>SonarQube Issues Report - PR #{pr_id}</b>", styles["Title"])
+            elements.append(title)
+            elements.append(Spacer(1, 12))
+
+            page_width, page_height = landscape(A4)
+            available_width = page_width - doc.leftMargin - doc.rightMargin
+
+            col_widths = [
+                available_width * 0.08,
+                available_width * 0.08,
+                available_width * 0.38,
+                available_width * 0.15,
+                available_width * 0.05,
+                available_width * 0.10,
+                available_width * 0.06,
+                available_width * 0.10,
+            ]
+
+            wrap_style = ParagraphStyle(name="wrap", wordWrap="CJK", fontSize=8)
+            wrapped_rows = [[Paragraph(str(cell), wrap_style) for cell in row] for row in rows]
+
+            header_style = ParagraphStyle(name="header", fontSize=10, textColor=colors.white, alignment=1)
+            wrapped_headers = [Paragraph(h, header_style) for h in headers]
+
+            table_data = [wrapped_headers] + wrapped_rows
+
+            table = Table(table_data, colWidths=col_widths, repeatRows=1)
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#003366")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+
+            elements.append(table)
+            doc.build(elements)
+
+            print(f"PDF report generated: {filename}")
+            "@ | python -
+
+          displayName: 'Generate SonarQube Excel Report for PR Check'
+          condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+          env:
+            sonarReportFilenamePR: $(sonarReportFilenamePR)
+
+        #Step 14: Publish SonarQube PR issues Report PDF
+        - task: PublishBuildArtifacts@1
+          displayName: 'Publish SonarQube Scan PR issues Report'
+          inputs:
+            PathtoPublish: '$(sonarReportFilenamePR)'
+            ArtifactName: ${{ parameters.sonarReportArtifactName }}
+            PublishLocation: 'Container'
+          condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+
+        # Step 15: Get SonarQube Security Scan Report - PDF
+        - task: Bash@3
+          displayName: Download SonarQube PDF Report for Branches
+          condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+          inputs:
+            targetType: inline
+            script: |
+              set -e
+              AUTH_HEADER=$(echo -n "${SONAR_TOKEN}:" | base64)
+              branchName=$(echo "$branchName" | sed 's#refs/heads/##')
+              encodedBranchName=$(echo "$branchName" | sed 's/\//%2F/g')
+
+              #echo "Downloading SonarQube security report for project: $SONARQUBE_PROJECT_KEY on branch: $encodedBranchName"
+              #echo "URL: ${SONARQUBE_URL}/api/security_reports/download?project=${SONARQUBE_PROJECT_KEY}&branch=${encodedBranchName}"
+
+              generate_url="${SONARQUBE_URL}/api/security_reports/download?project=${SONARQUBE_PROJECT_KEY}&branch=${encodedBranchName}"
+
+              curl -v -f -L \
+                -H "Authorization: Basic ${AUTH_HEADER}" \
+                -o "$(sonarReportFilenameBuild)" \
+                "$generate_url"
+
+              echo "Download complete. File details:"
+               ls -lh "$(sonarReportFilenameBuild)"
+          env:
+            SONAR_TOKEN: ${{ parameters.sonarQubeToken }}
+            SONARQUBE_URL: ${{ parameters.sonarQubeUrl }}
+            SONARQUBE_PROJECT_KEY: ${{ parameters.sonarQubeProjectKey }}
+            branchName: ${{ parameters.branchName }}
+
+        # Step 16: Publish SonarQube Security Scan Report
+        - task: PublishBuildArtifacts@1
+          displayName: 'Publish SonarQube Build Report'
+          inputs:
+            PathtoPublish: '$(sonarReportFilenameBuild)'
+            ArtifactName: ${{ parameters.sonarReportArtifactName }}
+          condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+
+        # - task: Bash@3
+        #   displayName: Download SonarQube PDF Report
+        #   inputs:
+        #     targetType: inline
+        #     script: |
+        #       AUTH_HEADER=$(echo -n "${SONAR_TOKEN}:" | base64)
+        #       branchName=$(echo "$branchName" | sed 's#refs/heads/##')
+        #       encodedBranchName=$(echo "$branchName" | sed 's/\//%2F/g')
+
+        #       echo "Downloading SonarQube security report..."
+        #       echo "$branchName"
+        #       echo "$encodedBranchName"
+        #       echo "$SONAR_TOKEN"
+        #       echo "$SONARQUBE_URL"
+        #       echo "$SONARQUBE_PROJECT_KEY"
+        #       echo "$sonarProjectKey"
+        #       echo "$AUTH_HEADER"
+              
+        #       export generate_url=$(echo "$SONARQUBE_URL/api/security_reports/download?project=$SONARQUBE_PROJECT_KEY&branch=$encodedBranchName")
+        #       echo "$generate_url"
+        #       curl -s -X GET "$(generate_url)" -H "Authorization: Basic $AUTH_HEADER" -o Sonar-Security-Report.pdf 
+        #       ls -lrtha
+        #   env:
+        #     SONAR_TOKEN: ${{ parameters.sonarQubeToken }}
+        #     SONARQUBE_URL: ${{ parameters.sonarQubeUrl }}
+        #     SONARQUBE_PROJECT_KEY: ${{ parameters.sonarQubeProjectKey }}
+        #     sonarProjectKey: ${{ parameters.sonarQubeProjectKey }}
+        #     branchName: ${{ parameters.branchName }}
+
+        # Step 17: Get SonarQube Regulatory Report
+        - script: |
+            echo "Downloading SonarQube Regulatory Report..."
+            curl -sSf -u "${SONARQUBE_TOKEN}:" \
+              -o regulatory-report.zip \
+              "${SONARQUBE_URL}/api/regulatory_reports/download?project=${SONARQUBE_PROJECT_KEY}&branch=Master"
+          displayName: 'Download SonarQube Regulatory Report'
+          env:
+            SONARQUBE_TOKEN: ${{ parameters.sonarQubeToken }}
+            SONARQUBE_URL: ${{ parameters.sonarQubeUrl }}
+            SONARQUBE_PROJECT_KEY: ${{ parameters.sonarQubeProjectKey }}
+          condition: and(succeeded(), eq(variables['Build.SourceBranch'], '${{ parameters.branchFilter }}'), ne(variables['Build.Reason'], 'PullRequest'))
+
+
+
+        # Step 18: Publish SonarQube Regulatory Report
+        - task: PublishBuildArtifacts@1
+          displayName: 'Publish SonarQube Regulatory Report'
+          inputs:
+            PathtoPublish: 'Sonar-Regulatory-Report.zip'
+            ArtifactName: ${{ parameters.sonarReportArtifactName }}
+            PublishLocation: 'Container'
+          condition: and(succeeded(), eq(variables['Build.SourceBranch'], '${{ parameters.branchFilter }}'), ne(variables['Build.Reason'], 'PullRequest'))
+
+
+        # Step 19: Wiz Directory Scan
+        - task: wiz@0
+          displayName: Run Wiz Directory Scan
+          inputs:
+            command: 'dir'
+            clientid: ${{ parameters.wizClientId }}
+            secret: ${{ parameters.wizClientSecret }}
+            failOnSeverity: ${{ parameters.wizFailOnSeverity }}
+            policyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+            succeedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+            scanTags: 'directory'
+            path: '.'
+            scanPolicies: ${{ parameters.wizScanPolicies }}
+            useServiceConnection: true
+            serviceConnectionId: ${{ parameters.wizServiceConnection }}
+
+
+        # Step 20: Docker Container Image Build
+        - ${{ if eq(parameters.isContainerized, true) }}:
+          - task: Docker@2
+            displayName: 'Docker Image Build'
+            inputs:
+              command: 'build' 
+              dockerfile: '${{ parameters.Dockerfile }}' 
+              repository: '${{ parameters.dockerRepository }}' 
+              buildContext: '${{ parameters.dockerBuildContext }}'
+              tags: |
+                ${{ parameters.dockerTags }}
+
+        #Step 21: Wiz Container Scan
+        - ${{ if eq(parameters.isContainerized, true) }}:
+          - task: wiz@0
+            displayName: Run Wiz Container Image Scan
+            inputs:
+              command: 'image'
+              clientid: ${{ parameters.wizClientId }}
+              secret: ${{ parameters.wizClientSecret }}
+              succeedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+              image: ${{ parameters.wizContainerimage }}
+              policyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+              fileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+              useServiceConnection: false
+              sudo: true

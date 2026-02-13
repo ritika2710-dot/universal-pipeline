@@ -1,0 +1,115 @@
+# windows-dotnet-build-and-test.yml
+# ------------------------------
+# Parameters
+# ------------------------------
+parameters:
+  - name: dotnetVersion
+    type: string
+    default: ''
+    
+  - name: buildConfiguration
+    displayName: 'Build Configuration'
+    type: string
+    default: 'Release'
+
+  - name: projectPath
+    displayName: 'Path to .NET Project File'
+    type: string
+    default: 'SampleBot.csproj'
+
+  - name: archiveFileName
+    displayName: 'Archive File Name'
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+
+  - name: artifactName
+    displayName: 'Artifact Name'
+    type: string
+    default: 'Build-Drop'
+
+  # Containerized Application
+  - name: isContainerized
+    displayName: 'Is Containerized Application'
+    type: boolean
+    default: false
+
+# ------------------------------
+# Variables
+# ------------------------------
+#variables:
+#  buildPlatform: 'Any CPU'
+
+# ------------------------------
+# Single Stage
+# ------------------------------
+stages:
+  - stage: BuildAndPublish
+    displayName: 'Build, Test, and Publish'
+    jobs:
+      - job: BuildTestPublishJob
+        displayName: 'Build, Test, and Publish Job'
+             
+        steps:
+          # Step 1: Checkout source code
+          - checkout: self
+            displayName: 'Checkout Source Code'
+
+          # Step 2: Restore dependencies
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore NuGet Packages'
+            inputs:
+              command: 'restore'
+              projects: '${{ parameters.projectPath }}'
+
+          # Step 3: Build project
+          - task: DotNetCoreCLI@2
+            displayName: 'Build Project'
+            inputs:
+              command: 'build'
+              projects: '${{ parameters.projectPath }}'
+              arguments: '--configuration ${{ parameters.buildConfiguration }}'
+
+          # Step 4: Run tests (optional)
+          - task: DotNetCoreCLI@2
+            displayName: 'Run Unit Tests'
+            continueOnError: true
+            inputs:
+              command: 'test'
+              projects: '**/*Tests.csproj'
+              arguments: '--configuration ${{ parameters.buildConfiguration }} --no-build'
+
+          # Step 5: Publish build output
+          - task: DotNetCoreCLI@2
+            displayName: 'Publish Project'
+            inputs:
+              command: 'publish'
+              publishWebProjects: false
+              projects: '${{ parameters.projectPath }}'
+              arguments: '--configuration ${{ parameters.buildConfiguration }} --output $(Build.ArtifactStagingDirectory)/publish'
+              zipAfterPublish: false
+
+          # Step 6: Prepare clean folder for zipping (contents only, no subfolder)
+          - powershell: |
+              New-Item -ItemType Directory -Path "$(Build.ArtifactStagingDirectory)\pack" -Force
+              Copy-Item "$(Build.ArtifactStagingDirectory)\publish\*" "$(Build.ArtifactStagingDirectory)\pack" -Recurse
+            displayName: "Prepare clean folder for ZIP"    
+    
+          # Step 7: Archive published output (only if not containerized & not PR)
+          - ${{ if and(eq(parameters.isContainerized, false), ne(variables['Build.Reason'], 'PullRequest')) }}:
+              - task: ArchiveFiles@2
+                displayName: 'Create Build Archive'
+                inputs:
+                  rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/pack'
+                  includeRootFolder: false
+                  archiveType: 'zip'
+                  archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+                  replaceExistingArchive: true
+
+          # Step 8: Publish artifact to ADO (only if not containerized & not PR)
+          - ${{ if and(eq(parameters.isContainerized, false), ne(variables['Build.Reason'], 'PullRequest')) }}:
+              - task: PublishBuildArtifacts@1
+                displayName: 'Publish Build Artifact'
+                inputs:
+                  pathToPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+                  artifactName: '${{ parameters.artifactName }}'
+                  publishLocation: 'Container'

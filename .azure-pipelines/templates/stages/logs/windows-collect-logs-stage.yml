@@ -1,0 +1,86 @@
+# templates/dotnet-collect-logs-stage.yaml
+parameters:
+  - name: stageName
+    type: string
+    default: 'CollectLogsStage'
+
+  - name: stageDisplayName
+    type: string
+    default: 'Collect & Publish Run Logs (ZIP)'
+
+  - name: condition
+    type: string
+    default: 'succeededOrFailed()'
+
+  - name: jobName
+    type: string
+    default: 'CollectLogsJob'
+
+  - name: jobDisplayName
+    type: string
+    default: 'Collect logs'
+
+  - name: universalFeedName
+    type: string
+    default: ''
+
+  - name: logsPackageName
+    type: string
+    default: 'pipeline-logs'
+
+  - name: logsArtifactName
+    type: string
+    default: 'run-logs'
+
+  - name: packageDescription
+    type: string
+    default: 'Pipeline logs for build'
+
+stages:
+- stage: ${{ parameters.stageName }}
+  displayName: ${{ parameters.stageDisplayName }}
+  condition: ${{ parameters.condition }}
+  jobs:
+    - job: ${{ parameters.jobName }}
+      displayName: ${{ parameters.jobDisplayName }}
+      condition: ${{ parameters.condition }}
+
+      steps:
+        - pwsh: |
+            $orgUrl  = "$(System.CollectionUri)"
+            $project = "$(System.TeamProject)"
+            $buildId = "$(Build.BuildId)"
+            $uri  = "$orgUrl$project/_apis/build/builds/$buildId/logs?api-version=7.1"
+            $out  = "$(Pipeline.Workspace)/run-logs-$buildId.zip"
+
+            $headers = @{
+              "Authorization" = "Bearer $(System.AccessToken)"
+              "Accept"        = "application/zip"
+            }
+
+            Invoke-RestMethod -Method GET -Uri $uri -Headers $headers -OutFile $out
+            Write-Host "Saved $out"
+
+            # Prepare directory for Universal Package
+            $pkgDir = "$(Build.ArtifactStagingDirectory)/universal-logs-package"
+            New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
+            Copy-Item $out -Destination (Join-Path $pkgDir "run-logs-$buildId.zip") -Force
+          displayName: "Download logs ZIP for this run"
+
+        - task: PublishPipelineArtifact@1
+          displayName: "Publish run logs ZIP"
+          inputs:
+            targetPath: "$(Pipeline.Workspace)/run-logs-$(Build.BuildId).zip"
+            artifact: "${{ parameters.logsArtifactName }}"
+
+        - task: UniversalPackages@0
+          displayName: 'Publish Pipeline Logs Universal Package'
+          condition: ${{ parameters.condition }}
+          inputs:
+            command: 'publish'
+            publishDirectory: '$(Build.ArtifactStagingDirectory)/universal-logs-package'
+            vstsFeedPublish: '$(System.TeamProject)/${{ parameters.universalFeedName }}'
+            vstsFeedPackagePublish: '${{ parameters.logsPackageName }}'
+            versionOption: 'custom'
+            versionPublish: '1.0.$(Build.BuildId)'
+            packagePublishDescription: '${{ parameters.packageDescription }}'

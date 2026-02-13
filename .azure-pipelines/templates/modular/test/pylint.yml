@@ -1,0 +1,75 @@
+# Modular Pylint Scan Template
+# Path: .azure-pipelines/templates/modular/scan/pylint.yml
+
+parameters:
+- name: workingDirectory
+  type: string
+  default: '$(System.DefaultWorkingDirectory)'
+- name: sourceDirectory
+  type: string
+  default: 'src/'
+- name: pylintConfigFile
+  type: string
+  default: '.pylintrc'
+- name: failOnError
+  type: boolean
+  default: false
+- name: minimumScore
+  type: number
+  default: 7.0
+- name: outputFormat
+  type: string
+  default: 'json'
+
+steps:
+- script: |
+    pip install pylint pylint-exit
+  displayName: 'Install Pylint'
+  workingDirectory: '${{ parameters.workingDirectory }}'
+
+- script: |
+    mkdir -p $(Build.StagingDirectory)/pylint
+  displayName: 'Create output directory'
+
+- script: |
+    if [ -f "${{ parameters.pylintConfigFile }}" ]; then
+      echo "Using custom pylint config: ${{ parameters.pylintConfigFile }}"
+      CONFIG_OPTION="--rcfile=${{ parameters.pylintConfigFile }}"
+    else
+      echo "No custom config found, using defaults"
+      CONFIG_OPTION=""
+    fi
+    
+    pylint $CONFIG_OPTION \
+      --output-format=${{ parameters.outputFormat }} \
+      ${{ parameters.sourceDirectory }} \
+      > $(Build.StagingDirectory)/pylint/pylint-report.${{ parameters.outputFormat }} || pylint-exit $?
+    
+    # Generate text report for console output
+    pylint $CONFIG_OPTION ${{ parameters.sourceDirectory }} || true
+  displayName: 'Run Pylint scan'
+  workingDirectory: '${{ parameters.workingDirectory }}'
+  continueOnError: ${{ not(parameters.failOnError) }}
+
+- script: |
+    SCORE=$(grep -oP '"score": \K[0-9.]+' $(Build.StagingDirectory)/pylint/pylint-report.json | head -1)
+    echo "Pylint Score: $SCORE"
+    echo "##vso[task.setvariable variable=PylintScore]$SCORE"
+    
+    if (( $(echo "$SCORE < ${{ parameters.minimumScore }}" | bc -l) )); then
+      echo "##vso[task.logissue type=warning]Pylint score ($SCORE) is below minimum threshold (${{ parameters.minimumScore }})"
+      if [ "${{ parameters.failOnError }}" = "True" ]; then
+        exit 1
+      fi
+    fi
+  displayName: 'Check Pylint score'
+  workingDirectory: '${{ parameters.workingDirectory }}'
+  condition: and(succeeded(), eq('${{ parameters.outputFormat }}', 'json'))
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Pylint report'
+  inputs:
+    PathtoPublish: '$(Build.StagingDirectory)/pylint'
+    ArtifactName: 'pylint-report'
+    publishLocation: 'Container'
+  condition: succeededOrFailed()

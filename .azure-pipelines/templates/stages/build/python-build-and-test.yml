@@ -1,0 +1,159 @@
+# python-build-and-test.yaml
+parameters:
+  - name: pythonVersion
+    type: string
+    default: '3.11'
+  
+  - name: requirementsFile
+    type: string
+    default: 'requirements.txt'
+  
+  - name: coverageReportPath
+    type: string
+    default: 'coverage.xml'
+
+  - name: testResultsPath
+    type: string
+    default: 'junit/test-results.xml'
+
+  - name: archiveFileName
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)/$(Build.SourceVersion).zip'
+
+  - name: artifactName
+    type: string
+    default: 'Build-Drop'
+  
+  # Containarized Application
+
+  - name: isContainerized
+    type: boolean
+    default: false
+
+  # - name: Dockerfile
+  #   type: string
+  #   default: '**/Dockerfile'
+
+  # - name: dockerBuildContext
+  #   type: string
+  #   default: '.'
+
+  # - name: dockerRepository
+  #   type: string
+  #   default: ''
+
+  # - name: dockerTags
+  #   type: string
+  #   default: 'latest'
+
+# Pipeline template starts here
+
+stages:
+- stage: BuildStage
+  displayName: "Stage 2 - Build & Test"
+  jobs:
+  - job: BuildJob
+    displayName: Build & Test
+    steps:
+    - checkout: self
+      fetchDepth: 1
+
+    # Step 1: Use Python - Specific Version
+    - task: UsePythonVersion@0
+      displayName: Use Python ${{ parameters.pythonVersion }}
+      inputs:
+        versionSpec: ${{ parameters.pythonVersion }}
+
+    # Step 2: Install dependencies
+    - task: Bash@3
+      displayName: Install Application Dependencies
+      inputs:
+        targetType: inline
+        script: |
+          pip${{ parameters.pythonVersion }} install --target .python_packages/lib/site-packages -r ${{ parameters.requirementsFile }}
+
+    # # Step 3: Pytest with Coverage
+    # - task: Bash@3
+    #   displayName: Run Pytest with Coverage
+    #   inputs:
+    #     targetType: inline
+    #     script: |
+    #       source venv/bin/activate
+    #       pip install pytest pytest-cov
+    #       echo "Running tests..."
+    #       mkdir -p $(dirname ${{ parameters.testResultsPath }})
+    #       pytest --junitxml=${{ parameters.testResultsPath }} --cov=. --cov-report=xml
+      
+    # Step 3: Pytest with Coverage
+    - task: Bash@3
+      displayName: Run Pytest with Coverage (gracefully handle no tests)
+      inputs:
+        targetType: inline
+        script: |
+          set -e  # Fail on real errors
+              
+          # Create venv if it doesn't exist
+          if [ ! -d "venv" ]; then
+            echo "Virtual environment not found. Creating..."
+            python3 -m venv venv
+          fi
+          source venv/bin/activate
+          pip install pytest pytest-cov
+
+          echo "Checking for test files..."
+          mkdir -p $(dirname ${{ parameters.testResultsPath }})
+          mkdir -p coverage
+
+          # Run pytest and capture exit code
+          echo "Running pytest with coverage..."
+          pytest --junitxml=${{ parameters.testResultsPath }} \
+                --cov=. \
+                --cov-report=xml:${{ parameters.coverageReportPath }} \
+                --cov-fail-under=0 || exit_code=$?
+
+          # Handle pytest exit codes gracefully
+          if [ "${exit_code:-0}" -eq 5 ]; then
+            echo "No tests were collected. Creating placeholder reports..."
+            echo "##vso[task.logissue type=warning]No tests found. Skipping pytest and coverage."
+            echo '<testsuite name="no-tests" tests="0" errors="0" failures="0" skipped="0"></testsuite>' \
+              > ${{ parameters.testResultsPath }}
+            echo '<?xml version="1.0"?><coverage branch-rate="0" line-rate="0" version="5.0" timestamp="'$(date +%s)'"><sources/><packages/></coverage>' \
+              > ${{ parameters.coverageReportPath }}
+          elif [ "${exit_code:-0}" -ne 0 ]; then
+            echo "Pytest failed with exit code ${exit_code}. Failing the job."
+            exit ${exit_code}
+          else
+            echo "Pytest and coverage ran successfully."
+          fi
+
+
+
+    # Step 4: Publish Test Results
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '**/test-results.xml'
+        failTaskOnFailedTests: true
+        condition: succeededOrFailed()
+        displayName: 'Publish Test Results to Azure DevOps'
+
+    # Step 5: Archive Build Files
+    - ${{ if and(eq(parameters.isContainerized, false), ne(variables['Build.Reason'], 'PullRequest')) }}:
+      - task: ArchiveFiles@2
+        displayName: 'Archive files'
+        inputs:
+          rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+          includeRootFolder: false
+          archiveType: 'zip'
+          archiveFile: '${{ parameters.archiveFileName }}'
+          replaceExistingArchive: true
+
+    # Step 6: Publish Build Artifcats
+    - ${{ if and(eq(parameters.isContainerized, false), ne(variables['Build.Reason'], 'PullRequest')) }}:
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Artifact: ${{ parameters.artifactName }}'
+        inputs:
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+          ArtifactName: '${{ parameters.artifactName }}'
+          publishLocation: 'Container'
+

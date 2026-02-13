@@ -1,20 +1,104 @@
-# Introduction 
-TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
+# 🚀 Automation Hub – Centralized Azure DevOps Pipeline Templates
 
-# Getting Started
-TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
-1.	Installation process
-2.	Software dependencies
-3.	Latest releases
-4.	API references
+## 📘 Overview
+**Automation Hub** is a centralized Azure DevOps pipeline repository that hosts **reusable YAML templates** for CI/CD automation.  
+It provides:
 
-# Build and Test
-TODO: Describe and show how to build your code and run the tests. 
+- **Full pipeline templates** – ready-to-use end-to-end pipelines  
+- **Modular templates** – stage-level templates that teams can pick and choose (Build, Test, Scan, Deploy, etc.)
 
-# Contribute
-TODO: Explain how other users and developers can contribute to make your code better. 
+The goal is to **standardize CI/CD practices**, **improve reuse**, and **simplify onboarding** across projects.
 
-If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
-- [ASP.NET Core](https://github.com/aspnet/Home)
-- [Visual Studio Code](https://github.com/Microsoft/vscode)
-- [Chakra Core](https://github.com/Microsoft/ChakraCore)
+---
+
+## 🎯 Key Objectives
+- Promote **consistency** across all pipelines  
+- Enable **reuse of proven CI/CD patterns**  
+- Integrate **quality and security checks** by default  
+- Support **modular pipelines** for flexible adoption  
+- Maintain **single source of truth** for pipeline logic  
+
+---
+
+## 🧱 Recommended Repository Structure
+
+```bash
+automation-hub/
+│
+.azure-pipelines/
+│
+├── templates/
+│   ├── full-pipelines/
+│   │   ├── python-end-to-end.yml
+│   │   ├── nodejs-end-to-end.yml
+│   │   └── dotnet-end-to-end.yml
+│   │
+│   ├── stages/
+│   │   ├── build/
+│   │   │   ├── python-build.yml
+│   │   │   ├── nodejs-build.yml
+│   │   │   └── dotnet-build.yml
+│   │   │
+│   │   ├── security/
+│   │   │   ├── pylint-scan.yml
+│   │   │   ├── sonar-scan.yml
+│   │   │   └── trivy-scan.yml
+│   │   │
+│   │   └── deploy/
+│   │       ├── azure-functions-deploy.yml
+│   │       ├── aks-deploy.yml
+│   │       └── webapp-deploy.yml
+│   │
+│   └── modular/
+│       ├── build/
+│       │   ├── python-build.yml
+│       │   └── nodejs-build.yml
+│       │
+│       ├── test/
+│       │   ├── unit-test.yml
+│       │   └── integration-test.yml
+│       │
+│       ├── scan/
+│       │   ├── pylint.yml
+│       │   ├── sonar.yml
+│       │   └── trivy.yml
+│       │
+│       └── package/
+│           ├── python-package.yml
+│           └── nodejs-package.yml
+│
+└── azure-pipelines.yml       # example usage for testing / demonstration
+
+
+
+#Tag Specific Reference (Recommended)
+
+
+#Branch Specific Reference 
+Reference Repository:
+resources:
+  repositories:
+    - repository: automationHub
+      type: git
+      name: DevOps/automation-hub
+      ref: refs/heads/main
+
+
+
+Use Full Template:
+extends:
+  template: .azure-pipelines/templates/full/end-to-end.yml@automationHub
+  parameters:
+    environment: "dev"
+    enableWizScan: true
+
+
+
+Use Modular Template:
+stages:
+- template: .azure-pipelines/templates/modular/validation/pr-checks.yml@automationHub
+- template: .azure-pipelines/templates/modular/build/python-build.yml@automationHub
+- template: .azure-pipelines/templates/modular/test/pytest.yml@automationHub
+- template: .azure-pipelines/templates/modular/deploy/webapp-deploy.yml@automationHub
+
+

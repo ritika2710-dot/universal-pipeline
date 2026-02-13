@@ -1,0 +1,112 @@
+# templates/stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+parameters:
+  - name: stageName
+    type: string
+    default: 'Deploy'
+
+  - name: stageDisplayName
+    type: string
+    default: 'Deploy to Azure App Service'
+
+  - name: dependsOnStage
+    type: string
+    default: 'ManualApprovalStage1'
+
+  - name: condition
+    type: string
+    default: "succeeded('ManualApprovalStage1')"
+
+  - name: jobName
+    type: string
+    default: 'DeployAppService'
+
+  - name: jobDisplayName
+    type: string
+    default: 'Deploy Azure App Service'
+
+  - name: environment
+    type: string
+    default: ''
+
+  - name: azureSubscription
+    type: string
+    default: ''
+
+  - name: resourceGroupName
+    type: string
+    default: ''
+
+  - name: appName
+    type: string
+    default: ''
+
+  - name: appType     # webApp OR functionApp
+    type: string
+    default: ''
+
+  - name: artifactName
+    type: string
+    default: 'Build-Drop'
+
+  - name: packagePath
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.BuildId).zip'
+
+
+stages:
+- stage: ${{ parameters.stageName }}
+  displayName: '${{ parameters.stageDisplayName }}'
+
+  #dependsOn: ${{ parameters.dependsOnStage }}
+  #condition: ${{ parameters.condition }}
+
+  jobs:
+  - deployment: ${{ parameters.jobName }}
+    displayName: '${{ parameters.jobDisplayName }}'
+    environment: '${{ parameters.environment }}'
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+          - download: current
+            artifact: ${{ parameters.artifactName }}
+            displayName: "Download Artifact"
+
+          - task: DownloadBuildArtifacts@0
+            displayName: "Download Build Artifacts"
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: ${{ parameters.artifactName }}
+              downloadPath: '$(Build.ArtifactStagingDirectory)'
+
+
+          # =====================================================
+          # Deploy Web App (only when appType = webApp)
+          # =====================================================
+          - task: AzureWebApp@1
+            displayName: 'Deploy Azure Web App'
+            condition: eq(variables['appType'], 'webApp')
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              resourceGroupName: ${{ parameters.resourceGroupName }}
+              appType: 'webApp'
+              appName: ${{ parameters.appName }}
+              package: ${{ parameters.packagePath }}
+              deploymentMethod: 'zipDeploy'
+
+
+          # =====================================================
+          # Deploy Function App (only when appType = functionApp)
+          # =====================================================
+          - task: AzureFunctionApp@1
+            displayName: 'Deploy Azure Function App'
+            condition: eq(variables['appType'], 'functionApp')
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              resourceGroupName: ${{ parameters.resourceGroupName }}
+              appType: 'functionApp'
+              appName: ${{ parameters.appName }}
+              package: ${{ parameters.packagePath }}

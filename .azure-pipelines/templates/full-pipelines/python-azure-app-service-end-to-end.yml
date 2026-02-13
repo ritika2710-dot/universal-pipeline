@@ -1,0 +1,372 @@
+# Full End-to-End Python Pipeline 
+# Path: .azure-pipelines/templates/full-pipelines/python-azure-functions-end-to-end.yml
+
+parameters:
+
+- name: environment
+  type: string
+  default: ''
+
+#Temporary Flag for Building; Delete this post build
+- name: runValidate
+  type: boolean
+  default: true
+
+- name: runBuild
+  type: boolean
+  default: true
+
+- name: runScan
+  type: boolean
+  default: true
+
+- name: runReleaseTag
+  type: boolean
+  default: true
+
+- name: runLogCollection
+  type: boolean
+  default: true
+
+- name: runDeployment
+  type: boolean
+  default: true
+  
+
+# # Build Configuration
+# - name: runUnitTests
+#   type: boolean
+#   default: false
+
+# - name: publishArtifact
+#   type: boolean
+#   default: false
+
+# Branch Name Validation
+
+- name: stageName
+  type: string
+  default: 'EnforceBranchNamingStage'
+
+- name: displayName
+  type: string
+  default: 'Stage 1 - Enforce Branch Naming (PRs Only)'
+
+- name: jobName
+  type: string
+  default: 'EnforceBranchNaming'
+
+- name: jobDisplayName
+  type: string
+  default: 'Validate Branch Naming Convention'
+
+- name: branchRegex
+  type: string
+  default: '^(develop|feature|bugfix|hotfix|release)/.+$'
+
+#Build Parameters
+
+- name: pythonVersion
+  type: string
+  default: '3.11'
+
+- name: requirementsFile
+  type: string
+  default: 'requirements.txt'
+
+- name: testResultsPath
+  type: string
+  default: 'junit/test-results.xml'
+
+- name: archiveFileName
+  type: string
+  default: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+
+- name: artifactName
+  type: string
+  default: 'Build-Drop'
+
+#Containarized Application
+
+- name: isContainerized
+  type: boolean
+  default: false
+
+- name: Dockerfile
+  type: string
+  default: '**/Dockerfile'
+
+- name: dockerBuildContext
+  type: string
+  default: '.'
+
+- name: dockerRepository
+  type: string
+  default: ''
+
+- name: dockerTags
+  type: string
+  default: 'latest'
+
+# SonarQube parameters
+- name: sonarReportArtifactName
+  type: string
+  default: 'SonarQube-Reports'
+
+- name: sonarQubeServiceConnection
+  type: string
+  default: ''
+
+- name: sonarQubeProjectKey
+  type: string
+  default: ''
+
+- name: sonarQubeUrl
+  type: string
+  default: ''
+
+- name: sonarQubeToken
+  type: string
+  default: ''
+  
+- name: branchFilter
+  type: string
+  default: 'refs/heads/main'
+
+# Wiz parameters
+- name: wizClientId
+  type: string
+  default: ''
+  
+- name: wizClientSecret
+  type: string
+  default: ''
+
+- name: wizServiceConnection
+  type: string
+  default: ''
+
+- name: wizScanPolicies
+  type: string
+  default: "Fail-on-Medium-Vulns, Default vulnerabilities policy"
+
+- name: wizFailOnSeverity
+  type: string
+  default: 'Medium'
+
+- name: wizPolicyHitsOnly
+  type: boolean
+  default: false
+    
+- name: wizSucceedOnFailures
+  type: boolean
+  default: false
+
+- name: wizContainerSucceedOnFailures
+  type: boolean
+  default: false
+  
+- name: wizContainerimage
+  type: string
+  default: ''
+  
+- name: wizContainerpolicyHitsOnly
+  type: boolean
+  default: true
+
+- name: wizContainerfileHashesScan
+  type: boolean
+  default: true
+
+ #Tag Release
+- name: releaseTagStageName
+  type: string
+  default: 'ReleaseTagStage'
+
+- name: releaseTagdisplayName
+  type: string
+  default: 'Stage - Release Tagging'
+
+- name: gitUserName
+  type: string
+  default: ''
+
+- name: gitUserEmail
+  type: string
+  default: ''
+
+- name: releaseTagBranch
+  type: string
+  default: 'develop'
+
+- name: releaseType
+  type: string
+  default: 'patch'
+
+# ------------------------------------------------------------
+# Deployment (Azure Web App)
+# ------------------------------------------------------------
+- name: azureSubscriptionServiceConnection
+  type: string
+  default: ''
+
+- name: resourceGroupName
+  type: string
+  default: ''
+
+- name: appName
+  type: string
+  default: ''
+
+- name: appOs
+  type: string
+  default: 'linux'   # windows | linux
+
+# Log Collection
+- name: universalFeedName
+  type: string
+  default: ''
+
+# # Security Scan Configuration
+# - name: runPylint
+#   type: boolean
+#   default: true
+# - name: pylintMinScore
+#   type: number
+#   default: 7.0
+# - name: runSonarScan
+#   type: boolean
+#   default: false
+# - name: runTrivyScan
+#   type: boolean
+#   default: false
+
+# # Deployment Configuration
+# - name: deployToAzure
+#   type: boolean
+#   default: false
+# - name: deploymentType
+#   type: string
+#   default: 'functions'
+#   values:
+#   - functions
+#   - webapp
+#   - aks
+
+
+# Environment Configuration
+- name: environments
+  type: object
+  default:
+  - name: 'dev'
+    azureSubscription: ''
+    functionAppName: ''
+    resourceGroupName: ''
+    approvalRequired: true
+
+
+stages:
+# ============================================================
+# STAGES
+# ============================================================
+
+# ------------------------------------------------------------
+# Stage 1: Branch Name Validation (PR only)
+# ------------------------------------------------------------
+
+- ${{ if and(eq(parameters.runValidate, true), eq(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: ../stages/validation/branch-name-validation.yml
+    parameters:
+      stageName: ${{ parameters.stageName }}
+      displayName: ${{ parameters.displayName }}
+      jobName: ${{ parameters.jobName }}
+      jobDisplayName: ${{ parameters.jobDisplayName }}
+      branchRegex: ${{ parameters.branchRegex }}
+
+# ------------------------------------------------------------
+# Stage 2: Build & Test (Node.js)
+# ------------------------------------------------------------
+
+- ${{ if eq(parameters.runBuild, true) }}:
+  - template: ../stages/build/python-build-and-test.yml
+    parameters:
+      pythonVersion: ${{ parameters.pythonVersion }}
+      requirementsFile: ${{ parameters.requirementsFile }}
+      testResultsPath: ${{ parameters.testResultsPath }}
+      archiveFileName: ${{ parameters.archiveFileName }}
+      artifactName: ${{ parameters.artifactName }}
+      isContainerized: ${{ parameters.isContainerized }}
+      # dockerBuildContext: ${{ parameters.dockerBuildContext }}
+      # dockerRepository: ${{ parameters.dockerRepository }}
+      # Dockerfile: ${{ parameters.Dockerfile }}
+      # dockerTags: ${{ parameters.dockerTags }}
+
+# ------------------------------------------------------------
+# Stage 3: Run Scan
+# ------------------------------------------------------------
+
+- ${{ if eq(parameters.runScan, true) }}:
+  - template: ../stages/scan/python-quality-and-security-scan.yml
+    parameters:
+      pythonVersion: ${{ parameters.pythonVersion }}
+      sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
+      sonarQubeServiceConnection: ${{ parameters.sonarQubeServiceConnection }}
+      sonarQubeProjectKey: ${{ parameters.sonarQubeProjectKey }}
+      sonarQubeUrl: ${{ parameters.sonarQubeUrl }}
+      sonarQubeToken: ${{ parameters.sonarQubeToken }}
+      branchFilter: ${{ parameters.branchFilter }}
+      wizClientId: ${{ parameters.wizClientId }}
+      wizClientSecret: ${{ parameters.wizClientSecret }}
+      wizServiceConnection: ${{ parameters.wizServiceConnection }}
+      wizScanPolicies: ${{ parameters.wizScanPolicies }}
+      wizFailOnSeverity: ${{ parameters.wizFailOnSeverity }}
+      wizPolicyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+      wizSucceedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+      wizContainerSucceedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+      wizContainerimage: ${{ parameters.wizContainerimage }}
+      wizContainerpolicyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+      wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+      isContainerized: ${{ parameters.isContainerized }}
+      dockerBuildContext: ${{ parameters.dockerBuildContext }}
+      dockerRepository: ${{ parameters.dockerRepository }}
+      Dockerfile: ${{ parameters.Dockerfile }}
+      dockerTags: ${{ parameters.dockerTags }}
+
+# ------------------------------------------------------------
+# Stage 4: Release Tagging
+# ------------------------------------------------------------
+
+- ${{ if and(eq(parameters.runReleaseTag, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: ../stages/release-tag/release-tag.yml
+    parameters:
+      stageName: ${{ parameters.releaseTagStageName }}
+      displayName: ${{ parameters.releaseTagdisplayName }}
+      releaseTagBranch: ${{ parameters.releaseTagBranch }} 
+      releaseType: ${{ parameters.releaseType }} 
+
+# ------------------------------------------------------------
+# Stage 5: Deploy to Azure Functions
+# ------------------------------------------------------------
+
+- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: ../stages/deploy/deploy-on-azure-webapp.yml
+    parameters:
+      stageName: 'Deploy'
+      stageDisplayName: 'Deploy to Azure Web App'
+      jobName: 'DeployWebApp'
+      jobDisplayName: 'Deploy Azure Web App'
+      environment: ${{ parameters.environment }}
+      azureSubscription: ${{ parameters.azureSubscriptionServiceConnection }}
+      resourceGroupName: ${{ parameters.resourceGroupName }}
+      appName: ${{ parameters.appName }}
+      appOs: ${{ parameters.appOs }}
+      artifactName: ${{ parameters.artifactName }}
+
+# ------------------------------------------------------------
+# Stage 6: Log Collection
+# ------------------------------------------------------------
+
+- ${{ if and(eq(parameters.runLogCollection, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: ../stages/logs/collect-logs.yml
+    parameters:
+      universalFeedName: ${{ parameters.universalFeedName }}

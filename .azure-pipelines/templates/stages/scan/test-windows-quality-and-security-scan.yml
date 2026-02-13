@@ -1,0 +1,164 @@
+# stages/scan/dotnet-quality-and-security-scan.yml
+parameters:
+  - name: dotnetVersion
+    type: string
+    default: ''
+
+  - name: sonarQubeServiceConnection
+    type: string
+    default: ''
+
+  - name: sonarQubeProjectKey
+    type: string
+    default: ''
+
+  - name: sonarQubeUrl
+    type: string
+    default: ''
+
+  - name: sonarQubeToken
+    type: string
+    default: ''
+
+  - name: sonarReportArtifactName
+    type: string
+    default: 'SonarQube-Reports'
+
+  - name: branchName
+    type: string
+    default: $(Build.SourceBranch)
+
+  - name: branchFilter
+    type: string
+    default: 'refs/heads/main'
+
+  - name: coverageReportPath
+    type: string
+    default: 'TestResults\coverage.xml'
+
+  - name: testResultsPath
+    type: string
+    default: 'TestResults\test-results.xml'
+
+  - name: wizClientId
+    type: string
+    default: ''
+  
+  - name: wizClientSecret
+    type: string
+    default: ''
+
+  - name: wizServiceConnection
+    type: string
+    default: ''
+
+  - name: wizScanPolicies
+    type: string
+    default: "Fail-on-Medium-Vulns, Default vulnerabilities policy"
+
+  - name: wizFailOnSeverity
+    type: string
+    default: 'Medium'
+
+  - name: wizPolicyHitsOnly
+    type: boolean
+    default: false
+    
+  - name: wizSucceedOnFailures
+    type: boolean
+    default: false
+
+  - name: wizContainerSucceedOnFailures
+    type: boolean
+    default: false
+  
+  - name: wizContainerimage
+    type: string
+    default: ''
+  
+  - name: wizContainerpolicyHitsOnly
+    type: boolean
+    default: true
+
+  - name: wizContainerfileHashesScan
+    type: boolean
+    default: true
+
+  - name: isContainerized
+    type: boolean
+    default: false
+
+  - name: Dockerfile
+    type: string
+    default: '**/Dockerfile'
+
+  - name: dockerBuildContext
+    type: string
+    default: '.'
+
+  - name: dockerRepository
+    type: string
+    default: ''
+
+  - name: dockerTags
+    type: string
+    default: 'latest'
+
+stages:
+- stage: CodeQualityStage
+  displayName: "Stage 3 - Code Quality & Code Coverage"
+  variables:
+    - name: sonarReportFilenamePR
+      value: 'SonarScan-PR-$(System.PullRequest.PullRequestId).pdf'
+    - name: sonarReportFilenameBuild
+      value: 'SonarScan-Build-$(Build.BuildId).pdf'
+  jobs:
+    - job: SonarQubeCodeQuality
+      displayName: 'SonarQube Code Quality Check + Wiz Security Scan + Reports'
+
+      steps:
+
+
+        # Step 18: Wiz Directory Scan
+        - task: wiz@0
+          displayName: Run Wiz Directory Scan
+          inputs:
+            command: 'dir'
+            clientid: ${{ parameters.wizClientId }}
+            secret: ${{ parameters.wizClientSecret }}
+            failOnSeverity: ${{ parameters.wizFailOnSeverity }}
+            policyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+            succeedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+            scanTags: 'directory'
+            path: '.'
+            scanPolicies: ${{ parameters.wizScanPolicies }}
+            useServiceConnection: true
+            serviceConnectionId: ${{ parameters.wizServiceConnection }}
+
+
+        # Step 19: Docker Container Image Build
+        - ${{ if eq(parameters.isContainerized, true) }}:
+          - task: Docker@2
+            displayName: 'Docker Image Build'
+            inputs:
+              command: 'build' 
+              dockerfile: '${{ parameters.Dockerfile }}' 
+              repository: '${{ parameters.dockerRepository }}' 
+              buildContext: '${{ parameters.dockerBuildContext }}'
+              tags: |
+                ${{ parameters.dockerTags }}
+
+        #Step 20: Wiz Container Scan
+        - ${{ if eq(parameters.isContainerized, true) }}:
+          - task: wiz@0
+            displayName: Run Wiz Container Image Scan
+            inputs:
+              command: 'image'
+              clientid: ${{ parameters.wizClientId }}
+              secret: ${{ parameters.wizClientSecret }}
+              succeedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+              image: ${{ parameters.wizContainerimage }}
+              policyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+              fileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+              useServiceConnection: false
+              sudo: true

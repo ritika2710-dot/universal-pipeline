@@ -1,0 +1,46 @@
+#templates/validate-branch-naming.yaml
+parameters:
+  - name: stageName
+    type: string
+    default: 'EnforceBranchNamingStage'
+
+  - name: displayName
+    type: string
+    default: 'Stage - Enforce Branch Naming (PRs Only)'
+
+  - name: jobName
+    type: string
+    default: 'EnforceBranchNaming'
+
+  - name: jobDisplayName
+    type: string
+    default: 'Validate Branch Naming Convention'
+
+  - name: branchRegex
+    type: string
+    default: '^(develop|feature|bugfix|hotfix|release)/.+$'
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.displayName }}
+    condition: eq(variables['Build.Reason'], 'PullRequest')
+    jobs:
+      - job: ${{ parameters.jobName }}
+        displayName: ${{ parameters.jobDisplayName }}
+        steps:
+          - script: |
+              echo "Build.SourceBranch: $(Build.SourceBranch)"
+              echo "System.PullRequest.SourceBranch: $(System.PullRequest.SourceBranch)"
+
+              branch_name="$(System.PullRequest.SourceBranch)"
+              branch_name="${branch_name#refs/heads/}"
+
+              echo "Branch name for validation: $branch_name"
+
+              if [[ "$branch_name" =~ ${{ parameters.branchRegex }} ]]; then
+                echo "Branch name is valid."
+              else
+                echo "Branch name '$branch_name' does not follow the naming convention."
+                exit 1
+              fi
+            displayName: 'Check Branch Name'

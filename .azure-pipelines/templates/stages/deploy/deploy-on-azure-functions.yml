@@ -1,0 +1,110 @@
+# templates/stages/deploy/deploy-on-azure-functions.yaml
+
+parameters:
+  - name: stageName
+    type: string
+    default: 'Deploy'
+
+  - name: stageDisplayName
+    type: string
+    default: 'Deploy to Azure Function App'
+
+  - name: dependsOnStage
+    type: string
+    default: 'ManualApprovalStage1'
+
+  - name: condition
+    type: string
+    default: "succeeded('ManualApprovalStage1')"
+
+  - name: jobName
+    type: string
+    default: 'DeployFunctionApp'
+
+  - name: jobDisplayName
+    type: string
+    default: 'Deploy Azure Function App'
+
+  - name: environment
+    type: string
+    default: ''
+
+  - name: azureSubscription
+    type: string
+    default: ''
+
+  - name: appType
+    type: string
+    default: 'functionAppLinux'
+
+  - name: appName
+    type: string
+    default: ''
+
+  - name: artifactName
+    type: string
+    default: 'Build-Drop'
+
+  - name: packagePath
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.BuildId).zip'
+
+stages:
+- stage: ${{ parameters.stageName }}
+  displayName: '${{ parameters.stageDisplayName }}'
+  #dependsOn: ${{ parameters.dependsOnStage }}
+  #condition: ${{ parameters.condition }}
+  jobs:
+  - deployment: ${{ parameters.jobName }}
+    displayName: '${{ parameters.jobDisplayName }}'
+    environment: '${{ parameters.environment }}'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: ${{ parameters.artifactName }}
+            displayName: 'Download artifact'
+
+          # - task: ExtractFiles@1
+          #   displayName: 'Extract artifact'
+          #   inputs:
+          #     archiveFilePatterns: '${{ parameters.packagePath }}'
+          #     destinationFolder: '$(Pipeline.Workspace)/extracted'
+          #     cleanDestinationFolder: true
+
+          - task: DownloadBuildArtifacts@0
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: ${{ parameters.artifactName }}
+              downloadPath: '$(Build.ArtifactStagingDirectory)'
+
+          - task: AzureFunctionApp@1
+            displayName: 'Deploy Azure Function App'
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              appType: ${{ parameters.appType }}
+              appName: ${{ parameters.appName }}
+              package: ${{ parameters.packagePath }}
+
+
+
+
+
+
+    # steps:
+    # - task: DownloadBuildArtifacts@0
+    #   inputs:
+    #     buildType: 'current'
+    #     downloadType: 'single'
+    #     artifactName: ${{ parameters.artifactName }}
+    #     downloadPath: '$(Build.ArtifactStagingDirectory)'
+
+    # - task: AzureFunctionApp@1
+    #   displayName: 'Deploy Azure Function App'
+    #   inputs:
+    #     azureSubscription: ${{ parameters.azureSubscription }}
+    #     appType: ${{ parameters.appType }}
+    #     appName: ${{ parameters.appName }}
+    #     package: ${{ parameters.packagePath }}

@@ -1,0 +1,192 @@
+# ============================================================
+# Full End-to-End AngularJS → Azure App Service Pipeline
+# ============================================================
+
+parameters:
+
+# ------------------------------------------------------------
+# Global controls
+# ------------------------------------------------------------
+- name: environment
+  type: string
+  default: ''
+
+- name: runValidate
+  type: boolean
+  default: true
+
+- name: runBuild
+  type: boolean
+  default: true
+
+- name: runReleaseTag
+  type: boolean
+  default: true
+
+- name: runLogCollection
+  type: boolean
+  default: true
+
+- name: runDeployment
+  type: boolean
+  default: true
+
+# ------------------------------------------------------------
+# Branch Validation
+# ------------------------------------------------------------
+- name: stageName
+  type: string
+  default: 'EnforceBranchNamingStage'
+
+- name: displayName
+  type: string
+  default: 'Stage 1 - Enforce Branch Naming (PRs Only)'
+
+- name: jobName
+  type: string
+  default: 'EnforceBranchNaming'
+
+- name: jobDisplayName
+  type: string
+  default: 'Validate Branch Naming Convention'
+
+- name: branchRegex
+  type: string
+  default: '^(develop|feature|bugfix|hotfix|release)/.+$'
+
+# ------------------------------------------------------------
+# Build parameters (AngularJS)
+# ------------------------------------------------------------
+- name: nodeVersion
+  type: string
+  default: '18.x'
+
+- name: workingDirectory
+  type: string
+  default: '.'
+
+- name: buildConfiguration
+  type: string
+  default: 'production'
+
+- name: distFolder
+  type: string
+  default: 'dist'
+
+- name: artifactName
+  type: string
+  default: 'Build-Drop'
+
+- name: isContainerized
+  type: boolean
+  default: false
+
+# ------------------------------------------------------------
+# Release Tagging
+# ------------------------------------------------------------
+- name: releaseTagStageName
+  type: string
+  default: 'ReleaseTagStage'
+
+- name: releaseTagdisplayName
+  type: string
+  default: 'Stage - Release Tagging'
+
+- name: releaseTagBranch
+  type: string
+  default: 'develop'
+
+- name: releaseType
+  type: string
+  default: 'patch'
+
+# ------------------------------------------------------------
+# Deployment (Azure Web App)
+# ------------------------------------------------------------
+- name: azureSubscription
+  type: string
+  default: ''
+
+- name: resourceGroupName
+  type: string
+  default: ''
+
+- name: appName
+  type: string
+  default: ''
+
+- name: appOs
+  type: string
+  default: 'linux'   # windows | linux
+
+# ------------------------------------------------------------
+# Log Collection
+# ------------------------------------------------------------
+- name: universalFeedName
+  type: string
+  default: ''
+
+# ============================================================
+# STAGES
+# ============================================================
+
+# ------------------------------------------------------------
+# Stage 1: Branch Name Validation (PR only)
+# ------------------------------------------------------------
+- ${{ if and(eq(parameters.runValidate, true), eq(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: ../stages/validation/branch-name-validation.yml
+    parameters:
+      stageName: ${{ parameters.stageName }}
+      displayName: ${{ parameters.displayName }}
+      jobName: ${{ parameters.jobName }}
+      jobDisplayName: ${{ parameters.jobDisplayName }}
+      branchRegex: ${{ parameters.branchRegex }}
+
+# ------------------------------------------------------------
+# Stage 2: Build & Test (AngularJS)
+# ------------------------------------------------------------
+- ${{ if eq(parameters.runBuild, true) }}:
+  - template: ../stages/build/angularjs-build-and-test.yml
+    parameters:
+      nodeVersion: ${{ parameters.nodeVersion }}
+      workingDirectory: ${{ parameters.workingDirectory }}
+      buildConfiguration: ${{ parameters.buildConfiguration }}
+      distFolder: ${{ parameters.distFolder }}
+      artifactName: ${{ parameters.artifactName }}
+      isContainerized: ${{ parameters.isContainerized }}
+
+# ------------------------------------------------------------
+# Stage 3: Release Tagging
+# ------------------------------------------------------------
+- ${{ if and(eq(parameters.runReleaseTag, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: ../stages/release-tag/release-tag.yml
+    parameters:
+      stageName: ${{ parameters.releaseTagStageName }}
+      displayName: ${{ parameters.releaseTagdisplayName }}
+      releaseTagBranch: ${{ parameters.releaseTagBranch }}
+      releaseType: ${{ parameters.releaseType }}
+
+# ------------------------------------------------------------
+# Stage 4: Deploy to Azure Web App
+# ------------------------------------------------------------
+- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: ../stages/deploy/deploy-on-azure-webapp.yml
+    parameters:
+      stageName: 'Deploy'
+      stageDisplayName: 'Deploy to Azure Web App'
+      jobName: 'DeployWebApp'
+      jobDisplayName: 'Deploy Azure Web App'
+      environment: ${{ parameters.environment }}
+      azureSubscription: ${{ parameters.azureSubscription }}
+      resourceGroupName: ${{ parameters.resourceGroupName }}
+      appName: ${{ parameters.appName }}
+      appOs: ${{ parameters.appOs }}
+      artifactName: ${{ parameters.artifactName }}
+
+# ------------------------------------------------------------
+# Stage 5: Log Collection
+# ------------------------------------------------------------
+- ${{ if and(eq(parameters.runLogCollection, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
+  - template: ../stages/logs/collect-logs.yml
+    parameters:
+      universalFeedName: ${{ parameters.universalFeedName }}

@@ -1,0 +1,50 @@
+# templates/manual-approval-stage.yaml
+parameters:
+  - name: dependsOnStage
+    type: string
+    default: ''
+
+  - name: approvalStageName
+    type: string
+    default: 'ManualApprovalStage1'
+
+  - name: approvalJobName
+    type: string
+    default: 'ManualApprovalJob1'
+
+  - name: displayName
+    type: string
+    default: 'Stage Manual Approval'
+
+  - name: notifyUsers
+    type: string
+    default: ''
+
+  - name: instructions
+    type: string
+    default: 'Please approve this step to continue for Deployment Stage.'
+
+  - name: timeout
+    type: string
+    default: '5m'
+
+  - name: onTimeout
+    type: string
+    default: 'reject'
+
+stages:
+- stage: ${{ parameters.approvalStageName }}
+  displayName: '${{ parameters.displayName }}'
+  dependsOn: ${{ parameters.dependsOnStage }}
+  condition: succeeded('${{ parameters.dependsOnStage }}')
+  jobs:
+    - job: ${{ parameters.approvalJobName }}
+      displayName: 'Job Wait for Manual Approval'
+      pool: server  # ❗ Must stay 'server' — cannot be Windows
+      steps:
+        - task: ManualValidation@0
+          inputs:
+            # notifyUsers: ${{ parameters.notifyUsers }}  # optional
+            instructions: ${{ parameters.instructions }}
+            onTimeout: ${{ parameters.onTimeout }}
+            timeout: ${{ parameters.timeout }}

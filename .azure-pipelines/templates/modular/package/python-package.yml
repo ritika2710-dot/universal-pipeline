@@ -1,0 +1,69 @@
+# Modular Python Package Template
+# Path: .azure-pipelines/templates/modular/package/python-package.yml
+
+parameters:
+- name: workingDirectory
+  type: string
+  default: '$(System.DefaultWorkingDirectory)'
+- name: artifactName
+  type: string
+  default: 'python-app'
+- name: includeRequirements
+  type: boolean
+  default: true
+- name: additionalFiles
+  type: object
+  default: []
+- name: excludePatterns
+  type: object
+  default:
+  - '**/__pycache__/**'
+  - '**/*.pyc'
+  - '**/.pytest_cache/**'
+  - '**/tests/**'
+  - '**/.git/**'
+  - '**/.venv/**'
+  - '**/venv/**'
+
+steps:
+- script: |
+    mkdir -p $(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}
+  displayName: 'Create artifact directory'
+
+- task: CopyFiles@2
+  displayName: 'Copy application files'
+  inputs:
+    SourceFolder: '${{ parameters.workingDirectory }}'
+    Contents: |
+      **/*.py
+      ${{ if eq(parameters.includeRequirements, true) }}:
+        requirements.txt
+      ${{ each file in parameters.additionalFiles }}:
+        ${{ file }}
+      !${{ join('|!', parameters.excludePatterns) }}
+    TargetFolder: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}'
+    CleanTargetFolder: false
+    OverWrite: true
+
+- script: |
+    echo "Build ID: $(Build.BuildId)" > $(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}/BUILD_INFO.txt
+    echo "Build Number: $(Build.BuildNumber)" >> $(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}/BUILD_INFO.txt
+    echo "Source Version: $(Build.SourceVersion)" >> $(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}/BUILD_INFO.txt
+    echo "Build Date: $(date -u)" >> $(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}/BUILD_INFO.txt
+  displayName: 'Create build info file'
+
+- task: ArchiveFiles@2
+  displayName: 'Archive application'
+  inputs:
+    rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}.zip'
+    replaceExistingArchive: true
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish artifact'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/${{ parameters.artifactName }}.zip'
+    ArtifactName: '${{ parameters.artifactName }}'
+    publishLocation: 'Container'

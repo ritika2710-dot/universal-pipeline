@@ -1,0 +1,112 @@
+# templates/dotnet-release-tag.yml
+parameters:
+  - name: stageName
+    type: string
+    default: 'ReleaseTagStage'
+
+  - name: displayName
+    type: string
+    default: 'Stage - Release Tagging'
+
+  - name: releaseType
+    type: string
+    default: 'patch'
+
+  - name: releaseTagBranch
+    type: string
+    default: 'main'
+
+stages:
+- stage: ${{ parameters.stageName }}
+  displayName: ${{ parameters.displayName }}
+  jobs:
+    - job: TagReleaseJob
+      displayName: "Job Validate User and Tag Release"
+      pool:
+        vmImage: 'windows-latest'
+      steps:
+        - checkout: self
+          persistCredentials: true
+          fetchTags: true
+
+        - powershell: |
+            Write-Host "Getting the latest valid semantic version tag..."
+            git fetch --tags
+
+            $latestTag = ""
+            $tags = git tag --sort=-v:refname | Select-String '^v[0-9]+\.[0-9]+\.[0-9]+$' | ForEach-Object { $_.ToString().Trim() }
+
+            foreach ($tag in $tags) {
+              $version = $tag.TrimStart('v')
+              $parts = $version.Split('.')
+              $major = [int]$parts[0]
+              $minor = [int]$parts[1]
+              $patch = [int]$parts[2]
+
+              if ($patch -lt 1000) {
+                $latestTag = $tag
+                break
+              }
+            }
+
+            Write-Host "Latest valid tag: $latestTag"
+
+            if (-not $latestTag) {
+              $major = 0
+              $minor = 0
+              $patch = 0
+            } else {
+              $version = $latestTag.TrimStart('v')
+              $parts = $version.Split('.')
+              $major = [int]$parts[0]
+              $minor = [int]$parts[1]
+              $patch = [int]$parts[2]
+            }
+
+            Write-Host "Current version: $major.$minor.$patch"
+
+            $releaseType = "${{ parameters.releaseType }}"
+            Write-Host "Version bump type: $releaseType"
+
+            switch ($releaseType) {
+              'major' {
+                $major++
+                $minor = 0
+                $patch = 0
+              }
+              'minor' {
+                $minor++
+                $patch = 0
+              }
+              'patch' {
+                $patch++
+              }
+              default {
+                Write-Host "Invalid RELEASE_TYPE value: $releaseType"
+                exit 1
+              }
+            }
+
+            $newTag = "v{0}.{1}.{2}" -f $major, $minor, $patch
+            Write-Host "New tag to create: $newTag"
+            Write-Host "##vso[task.setvariable variable=new_tag]$newTag"
+          displayName: "Auto-calculate New Semantic Version"
+
+        - powershell: |
+            Write-Host "Configuring Git user..."
+            git config user.name "Azure DevOps Build Service"
+            git config user.email "ado-build-service-bot@unilever.com"
+
+            Write-Host "Fetching branch..."
+            git fetch origin ${{ parameters.releaseTagBranch }}
+            git checkout ${{ parameters.releaseTagBranch }}
+            git pull origin ${{ parameters.releaseTagBranch }}
+
+            Write-Host "Checking for existing tag..."
+            git fetch --tags
+            Write-Host "Creating annotated tag: $(new_tag)"
+            git tag -a "$(new_tag)" -m "Release $(new_tag)"
+
+            Write-Host "Pushing tag to origin..."
+            git push origin "$(new_tag)"
+          displayName: "Create and Push New Git Tag in ADO Repo"

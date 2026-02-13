@@ -1,0 +1,51 @@
+# Modular Python Build Template
+# Path: .azure-pipelines/templates/modular/build/python-build.yml
+
+parameters:
+- name: pythonVersion
+  type: string
+  default: '3.11'
+- name: workingDirectory
+  type: string
+  default: '$(System.DefaultWorkingDirectory)'
+- name: requirementsFile
+  type: string
+  default: 'requirements.txt'
+- name: installDevDependencies
+  type: boolean
+  default: false
+- name: devRequirementsFile
+  type: string
+  default: 'requirements-dev.txt'
+
+steps:
+- task: UsePythonVersion@0
+  displayName: 'Use Python ${{ parameters.pythonVersion }}'
+  inputs:
+    versionSpec: '${{ parameters.pythonVersion }}'
+    addToPath: true
+    architecture: 'x64'
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install setuptools wheel
+  displayName: 'Upgrade pip and install build tools'
+  workingDirectory: '${{ parameters.workingDirectory }}'
+
+- script: |
+    pip install -r ${{ parameters.requirementsFile }}
+  displayName: 'Install dependencies'
+  workingDirectory: '${{ parameters.workingDirectory }}'
+  condition: succeeded()
+
+- ${{ if eq(parameters.installDevDependencies, true) }}:
+  - script: |
+      pip install -r ${{ parameters.devRequirementsFile }}
+    displayName: 'Install dev dependencies'
+    workingDirectory: '${{ parameters.workingDirectory }}'
+    condition: succeeded()
+
+- script: |
+    pip list
+  displayName: 'List installed packages'
+  workingDirectory: '${{ parameters.workingDirectory }}'

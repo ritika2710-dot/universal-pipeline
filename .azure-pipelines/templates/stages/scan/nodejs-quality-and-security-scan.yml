@@ -1,0 +1,246 @@
+parameters:
+  - name: nodeVersion
+    type: string
+    default: '18.x'
+
+# SonarQube Parameters
+  - name: sonarQubeServiceConnection
+    type: string
+    default: ''
+
+  - name: sonarQubeProjectKey
+    type: string
+    default: ''
+
+  - name: sonarQubeUrl
+    type: string
+    default: ''
+
+  - name: sonarQubeToken
+    type: string
+    default: ''
+
+  - name: sonarReportArtifactName
+    type: string
+    default: 'SonarQube-Reports'
+
+  - name: branchName
+    type: string
+    default: $(Build.SourceBranch)
+
+  - name: branchFilter
+    type: string
+    default: 'refs/heads/main'
+
+  - name: coverageReportPath
+    type: string
+    default: 'coverage/lcov.info'
+
+  - name: testResultsPath
+    type: string
+    default: 'test-results/junit.xml'
+
+# Wiz Parameters
+  - name: wizClientId
+    type: string
+    default: ''
+
+  - name: wizClientSecret
+    type: string
+    default: ''
+
+  - name: wizServiceConnection
+    type: string
+    default: ''
+
+  - name: wizScanPolicies
+    type: string
+    default: 'Fail-on-Medium-Vulns, Default vulnerabilities policy'
+
+  - name: wizFailOnSeverity
+    type: string
+    default: 'Medium'
+
+  - name: wizPolicyHitsOnly
+    type: boolean
+    default: false
+
+  - name: wizSucceedOnFailures
+    type: boolean
+    default: false
+
+  - name: wizContainerSucceedOnFailures
+    type: boolean
+    default: false
+
+  - name: wizContainerimage
+    type: string
+    default: ''
+
+  - name: wizContainerpolicyHitsOnly
+    type: boolean
+    default: true
+
+  - name: wizContainerfileHashesScan
+    type: boolean
+    default: true
+
+# Containerized Application
+  - name: isContainerized
+    type: boolean
+    default: false
+
+  - name: Dockerfile
+    type: string
+    default: '**/Dockerfile'
+
+  - name: dockerBuildContext
+    type: string
+    default: '.'
+
+  - name: dockerRepository
+    type: string
+    default: ''
+
+  - name: dockerTags
+    type: string
+    default: 'latest'
+
+
+stages:
+- stage: CodeQualityStage
+  displayName: "Stage 3 - Code Quality & Security (Node.js)"
+  variables:
+    - name: sonarReportFilenamePR
+      value: 'SonarScan-PR-$(System.PullRequest.PullRequestId).pdf'
+    - name: sonarReportFilenameBuild
+      value: 'SonarScan-Build-$(Build.BuildId).pdf'
+
+  jobs:
+  - job: NodeQualityAndSecurity
+    displayName: 'Node.js Quality, Coverage, Sonar & Wiz'
+    steps:
+
+    # Step 1: Use Node.js
+    - task: NodeTool@0
+      displayName: Use Node.js ${{ parameters.nodeVersion }}
+      inputs:
+        versionSpec: ${{ parameters.nodeVersion }}
+
+    # Step 2: Install dependencies
+    - script: |
+        npm ci
+      displayName: 'Install npm dependencies'
+
+    # Step 3: ESLint (non-blocking)
+    - script: |
+        if npm run | grep -q lint; then
+          npm run lint || echo "Lint warnings detected"
+        else
+          echo "No lint script found, skipping ESLint"
+        fi
+      displayName: 'Run ESLint'
+
+    # Step 4: Unit Tests with Coverage (graceful)
+    - script: |
+        set +e
+        mkdir -p $(dirname ${{ parameters.testResultsPath }})
+        mkdir -p coverage
+
+        if npm run | grep -q test; then
+          npm test -- --coverage --reporters=default --reporters=jest-junit || exit_code=$?
+        else
+          exit_code=5
+        fi
+
+        if [ "${exit_code:-0}" -eq 5 ]; then
+          echo "No tests found. Creating placeholder reports."
+          echo '<testsuite tests="0"/>' > ${{ parameters.testResultsPath }}
+          echo "" > ${{ parameters.coverageReportPath }}
+        elif [ "${exit_code:-0}" -ne 0 ]; then
+          exit ${exit_code}
+        fi
+      displayName: 'Run Tests with Coverage'
+
+    # Step 5: Publish Test Results
+    - task: PublishTestResults@2
+      displayName: 'Publish Test Results'
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '**/junit.xml'
+
+    # Step 6: Publish Coverage
+    - task: PublishCodeCoverageResults@2
+      displayName: 'Publish Code Coverage'
+      condition: succeededOrFailed()
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: ${{ parameters.coverageReportPath }}
+
+    # Step 7: SonarQube Prepare
+    - task: SonarQubePrepare@7
+      displayName: 'Prepare SonarQube'
+      inputs:
+        SonarQube: ${{ parameters.sonarQubeServiceConnection }}
+        scannerMode: 'CLI'
+        configMode: 'manual'
+        cliProjectKey: ${{ parameters.sonarQubeProjectKey }}
+        extraProperties: |
+          sonar.projectVersion=1.0
+          sonar.sources=.
+          sonar.language=js
+          sonar.sourceEncoding=UTF-8
+          sonar.exclusions=**/node_modules/**,**/*.spec.js
+          sonar.javascript.lcov.reportPaths=${{ parameters.coverageReportPath }}
+
+    # Step 8: Sonar Analyze
+    - task: SonarQubeAnalyze@7
+      displayName: 'Run SonarQube Analysis'
+
+    # Step 9: Sonar Publish
+    - task: SonarQubePublish@7
+      displayName: 'Publish SonarQube Quality Gate'
+      inputs:
+        pollingTimeoutSec: '300'
+
+    # Step 10: Wiz Directory Scan
+    - task: wiz@0
+      displayName: 'Wiz Directory Scan'
+      inputs:
+        command: 'dir'
+        clientid: ${{ parameters.wizClientId }}
+        secret: ${{ parameters.wizClientSecret }}
+        failOnSeverity: ${{ parameters.wizFailOnSeverity }}
+        policyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+        succeedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+        scanPolicies: ${{ parameters.wizScanPolicies }}
+        path: '.'
+        useServiceConnection: true
+        serviceConnectionId: ${{ parameters.wizServiceConnection }}
+
+    # Step 11: Docker Build (Optional)
+    - ${{ if eq(parameters.isContainerized, true) }}:
+      - task: Docker@2
+        displayName: 'Docker Build'
+        inputs:
+          command: 'build'
+          dockerfile: ${{ parameters.Dockerfile }}
+          repository: ${{ parameters.dockerRepository }}
+          buildContext: ${{ parameters.dockerBuildContext }}
+          tags: |
+            ${{ parameters.dockerTags }}
+
+    # Step 12: Wiz Container Scan (Optional)
+    - ${{ if eq(parameters.isContainerized, true) }}:
+      - task: wiz@0
+        displayName: 'Wiz Container Image Scan'
+        inputs:
+          command: 'image'
+          clientid: ${{ parameters.wizClientId }}
+          secret: ${{ parameters.wizClientSecret }}
+          image: ${{ parameters.wizContainerimage }}
+          succeedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+          policyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+          fileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+          sudo: true
