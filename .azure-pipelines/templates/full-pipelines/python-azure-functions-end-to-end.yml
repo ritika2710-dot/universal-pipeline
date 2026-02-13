@@ -346,9 +346,9 @@ stages:
           jobName: 'DeployFunctionApp'
           jobDisplayName: 'Deploy Azure Function App'
           environment: ${{ env.name }} 
-          azureSubscription:  ${{ parameters.azureSubscriptionServiceConnection }} 
+          azureSubscription:  ${{ env.azureSubscription }}
           appType: 'functionAppLinux'
-          appName: ${{ parameters.functionAppName }} 
+          appName: ${{ env.functionAppName }} 
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.BuildId).zip'
 
@@ -361,10 +361,10 @@ stages:
           stageDisplayName: 'Deploy to Azure Function App  - ${{ env.name }}'
           jobName: 'DeployFunctionApp'
           jobDisplayName: 'Deploy Azure Function App'
-          environment: ${{ parameters.environment }} 
-          azureSubscription:  ${{ parameters.azureSubscriptionServiceConnection }} 
+          environment: ${{ env.name }} 
+          azureSubscription:  ${{ env.azureSubscription }}
           appType: 'functionAppLinux'
-          appName: ${{ parameters.functionAppName }} 
+          appName: ${{ env.functionAppName }} 
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.BuildId).zip'
 
