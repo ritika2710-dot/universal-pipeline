@@ -357,7 +357,7 @@ stages:
     - ${{ if eq(env.name, 'prod') }}:
       - template: ../stages/deploy/deploy-on-azure-functions.yml
         parameters:
-          stageName: 'Deploy_${{ env.name }}'
+          stageName: 'Deploy_${{ env.azureEnvironmentName }}'
           stageDisplayName: 'Deploy to Azure Function App  - ${{ env.name }}'
           jobName: 'DeployFunctionApp'
           jobDisplayName: 'Deploy Azure Function App'
