@@ -342,10 +342,10 @@ stages:
       - template: ../stages/deploy/deploy-on-azure-functions.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
-          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Function App - ${{ env.azureEnvironmentName }}'
           jobName: 'DeployFunctionApp'
           jobDisplayName: 'Deploy Azure Function App'
-          environment: ${{ env.name }} 
+          environment: ${{ env.azureEnvironmentName }} 
           azureSubscription:  ${{ env.azureSubscription }}
           appType: 'functionAppLinux'
           appName: ${{ env.functionAppName }} 
@@ -357,11 +357,11 @@ stages:
     - ${{ if eq(env.name, 'prod') }}:
       - template: ../stages/deploy/deploy-on-azure-functions.yml
         parameters:
-          stageName: 'Deploy_${{ env.azureEnvironmentName }}'
-          stageDisplayName: 'Deploy to Azure Function App  - ${{ env.name }}'
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Function App  - ${{ env.azureEnvironmentName }}'
           jobName: 'DeployFunctionApp'
           jobDisplayName: 'Deploy Azure Function App'
-          environment: ${{ env.name }} 
+          environment: ${{ env.azureEnvironmentName }} 
           azureSubscription:  ${{ env.azureSubscription }}
           appType: 'functionAppLinux'
           appName: ${{ env.functionAppName }} 
