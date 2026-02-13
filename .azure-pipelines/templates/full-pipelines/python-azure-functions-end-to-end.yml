@@ -342,7 +342,7 @@ stages:
       - template: ../stages/deploy/deploy-on-azure-functions.yml
         parameters:
           stageName: 'Deploy'
-          stageDisplayName: 'Deploy to Azure Function App'
+          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }} '
           jobName: 'DeployFunctionApp'
           jobDisplayName: 'Deploy Azure Function App'
           environment: ${{ env.name }} 
