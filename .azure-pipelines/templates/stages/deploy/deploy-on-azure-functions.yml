@@ -67,12 +67,12 @@ stages:
             inputs:
               targetType: inline
               script: |
-                echo $(env.azureEnvironmentName)
-                echo $(env.name)
-                echo $(env.functionAppName)
-                echo $(azureEnvironmentName)
-                echo $(name)
+                echo ${{ parameters.stageName }}
+                echo ${{ parameters.stageDisplayName }}
+                echo ${{ parameters.jobName }}
                 echo ${{ parameters.environment }}
+                echo ${{ parameters.azureSubscription }}
+                echo ${{ parameters.packagePath }}
 
 
           # - download: current
