@@ -62,31 +62,41 @@ stages:
       runOnce:
         deploy:
           steps:
-          - download: current
-            artifact: ${{ parameters.artifactName }}
-            displayName: 'Download artifact'
+          - task: Bash@3
+            displayName: Install Application Dependencies
+            inputs:
+              targetType: inline
+              script: |
+                echo $(stageDisplayName)
+                echo $(environment)
+                echo $(azureSubscription)
 
-          # - task: ExtractFiles@1
-          #   displayName: 'Extract artifact'
+
+          # - download: current
+          #   artifact: ${{ parameters.artifactName }}
+          #   displayName: 'Download artifact'
+
+          # # - task: ExtractFiles@1
+          # #   displayName: 'Extract artifact'
+          # #   inputs:
+          # #     archiveFilePatterns: '${{ parameters.packagePath }}'
+          # #     destinationFolder: '$(Pipeline.Workspace)/extracted'
+          # #     cleanDestinationFolder: true
+
+          # - task: DownloadBuildArtifacts@0
           #   inputs:
-          #     archiveFilePatterns: '${{ parameters.packagePath }}'
-          #     destinationFolder: '$(Pipeline.Workspace)/extracted'
-          #     cleanDestinationFolder: true
+          #     buildType: 'current'
+          #     downloadType: 'single'
+          #     artifactName: ${{ parameters.artifactName }}
+          #     downloadPath: '$(Build.ArtifactStagingDirectory)'
 
-          - task: DownloadBuildArtifacts@0
-            inputs:
-              buildType: 'current'
-              downloadType: 'single'
-              artifactName: ${{ parameters.artifactName }}
-              downloadPath: '$(Build.ArtifactStagingDirectory)'
-
-          - task: AzureFunctionApp@1
-            displayName: 'Deploy Azure Function App'
-            inputs:
-              azureSubscription: ${{ parameters.azureSubscription }}
-              appType: ${{ parameters.appType }}
-              appName: ${{ parameters.appName }}
-              package: ${{ parameters.packagePath }}
+          # - task: AzureFunctionApp@1
+          #   displayName: 'Deploy Azure Function App'
+          #   inputs:
+          #     azureSubscription: ${{ parameters.azureSubscription }}
+          #     appType: ${{ parameters.appType }}
+          #     appName: ${{ parameters.appName }}
+          #     package: ${{ parameters.packagePath }}
 
 
 
