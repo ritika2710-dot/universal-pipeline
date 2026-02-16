@@ -80,7 +80,7 @@ parameters:
 
 - name: archiveFileName
   type: string
-  default: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+  default: '$(Build.ArtifactStagingDirectory)/$(Build.SourceVersion).zip'
 
 - name: artifactName
   type: string
@@ -342,23 +342,7 @@ stages:
       - template: ../stages/deploy/deploy-on-azure-functions.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
-          stageDisplayName: 'Deploy to Azure Function App - ${{ env.azureEnvironmentName }}'
-          jobName: 'DeployFunctionApp'
-          jobDisplayName: 'Deploy Azure Function App'
-          environment: ${{ env.azureEnvironmentName }} 
-          azureSubscription:  ${{ env.azureSubscription }}
-          appType: 'functionAppLinux'
-          appName: ${{ env.functionAppName }} 
-          artifactName: 'Build-Drop'
-          packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.BuildId).zip'
-
-- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
-  - ${{ each env in parameters.environments }}:
-    - ${{ if eq(env.name, 'prod') }}:
-      - template: ../stages/deploy/deploy-on-azure-functions.yml
-        parameters:
-          stageName: 'Deploy_${{ env.name }}'
-          stageDisplayName: 'Deploy to Azure Function App  - ${{ env.azureEnvironmentName }}'
+          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
           jobName: 'DeployFunctionApp'
           jobDisplayName: 'Deploy Azure Function App'
           environment: ${{ env.name }} 
@@ -366,7 +350,23 @@ stages:
           appType: 'functionAppLinux'
           appName: ${{ env.functionAppName }} 
           artifactName: 'Build-Drop'
-          packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.BuildId).zip'
+          packagePath: ${{ parameters.archiveFileName }}
+
+- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'prod') }}:
+      - template: ../stages/deploy/deploy-on-azure-functions.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Function App  - ${{ env.name }}'
+          jobName: 'DeployFunctionApp'
+          jobDisplayName: 'Deploy Azure Function App'
+          environment: ${{ env.name }} 
+          azureSubscription:  ${{ env.azureSubscription }}
+          appType: 'functionAppLinux'
+          appName: ${{ env.functionAppName }} 
+          artifactName: 'Build-Drop'
+          packagePath: ${{ parameters.archiveFileName }}
 
 # ------------------------------------------------------------
 # Stage 6: Log Collection
