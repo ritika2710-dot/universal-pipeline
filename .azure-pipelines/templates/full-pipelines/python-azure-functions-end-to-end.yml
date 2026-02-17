@@ -367,6 +367,7 @@ stages:
           appName: ${{ env.functionAppName }} 
           artifactName: 'Build-Drop'
           packagePath: ${{ parameters.archiveFileName }}
+          resourceGroupName: ${{ env.resourceGroupName }}
 
 # ------------------------------------------------------------
 # Stage 6: Log Collection
