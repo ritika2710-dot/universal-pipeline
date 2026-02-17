@@ -251,7 +251,6 @@ parameters:
     azureSubscription: ''
     functionAppName: ''
     resourceGroupName: ''
-    approvalRequired: true
 
 
 stages:
