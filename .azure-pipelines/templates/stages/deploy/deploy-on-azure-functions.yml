@@ -33,6 +33,10 @@ parameters:
     type: string
     default: ''
 
+  - name: resourceGroupName
+    type: string
+    default: ''
+
   - name: appType
     type: string
     default: 'functionAppLinux'
@@ -47,7 +51,7 @@ parameters:
 
   - name: packagePath
     type: string
-    default: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.BuildId).zip'
+    default: '$(Build.ArtifactStagingDirectory)/$(Build.SourceVersion).zip'
 
 stages:
 - stage: ${{ parameters.stageName }}
@@ -69,10 +73,12 @@ stages:
               script: |
                 echo ${{ parameters.stageName }}
                 echo ${{ parameters.stageDisplayName }}
-                echo ${{ parameters.jobName }}
                 echo ${{ parameters.environment }}
                 echo ${{ parameters.azureSubscription }}
+                echo ${{ parameters.resourceGroupName }}
+                echo ${{ parameters.appName }}
                 echo ${{ parameters.packagePath }}
+
 
 
           # - download: current

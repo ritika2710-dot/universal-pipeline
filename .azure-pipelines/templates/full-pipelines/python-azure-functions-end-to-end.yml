@@ -350,6 +350,7 @@ stages:
           appName: ${{ env.functionAppName }} 
           artifactName: 'Build-Drop'
           packagePath: ${{ parameters.archiveFileName }}
+          resourceGroupName: ${{ parameters.resourceGroupName }}
 
 - ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
