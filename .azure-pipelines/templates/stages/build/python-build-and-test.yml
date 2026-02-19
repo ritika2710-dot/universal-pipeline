@@ -94,7 +94,7 @@ stages:
           python -m pip install --upgrade pip
           echo "Installing dependencies from: $REQUIREMENTS_FILE into venv"
           if [ -f "$REQUIREMENTS_FILE" ]; then
-            pip${{ parameters.pythonVersion }} install --target "$PROJECT_PATH/.python_packages/lib/site-packages" -r "$REQUIREMENTS_FILE"
+            python -m pip install -r "$REQUIREMENTS_FILE"
           else
             echo "ERROR: Requirements file not found at $REQUIREMENTS_FILE"
             exit 1

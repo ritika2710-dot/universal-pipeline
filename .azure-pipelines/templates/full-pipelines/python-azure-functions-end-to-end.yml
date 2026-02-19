@@ -1,20 +1,8 @@
 # Full End-to-End Python Pipeline 
 # Path: .azure-pipelines/templates/full-pipelines/python-azure-functions-end-to-end.yml
+# Shared parameters are listed in: .azure-pipelines/templates/_common/common-params.yml
 
 parameters:
-
-- name: environment
-  type: string
-  default: ''
-
-# # Build Configuration
-# - name: runUnitTests
-#   type: boolean
-#   default: false
-
-# - name: publishArtifact
-#   type: boolean
-#   default: false
 
 # Branch Name Validation
 
