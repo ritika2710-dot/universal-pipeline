@@ -27,7 +27,7 @@ parameters:
   - name: projectPath
     type: string
     default: '.'
-    description: 'Path to the project root where requirements.txt is located'
+    # Path to the project root where requirements.txt is located
 
   - name: archiveSourcePath
     type: string
