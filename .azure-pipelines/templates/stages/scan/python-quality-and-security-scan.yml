@@ -100,7 +100,7 @@ parameters:
   - name: projectPath
     type: string
     default: '.'
-    description: 'Path to the project root (same as build stage)'
+    #'Path to the project root (same as build stage)'
 
   - name: isContainerized
     type: boolean
