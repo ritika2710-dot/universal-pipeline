@@ -162,10 +162,6 @@ parameters:
 - name: universalPackageName
   type: string
   default: 'App'
-
-- name: dockerRepository
-  type: string
-  default: ''
    
 
 # Deployment (Azure Web App specific)
