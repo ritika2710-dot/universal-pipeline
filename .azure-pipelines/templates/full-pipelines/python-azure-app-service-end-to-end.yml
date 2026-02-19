@@ -187,14 +187,6 @@ parameters:
   type: string
   default: 'Stage - Release Tagging'
 
-- name: gitUserName
-  type: string
-  default: ''
-
-- name: gitUserEmail
-  type: string
-  default: ''
-
 - name: releaseTagBranch
   type: string
   default: 'develop'

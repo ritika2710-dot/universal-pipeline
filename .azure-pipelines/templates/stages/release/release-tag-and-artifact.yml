@@ -2,11 +2,11 @@
 parameters:
   - name: stageName
     type: string
-    default: 'ReleaseTagStage'
+    default: 'ReleaseStage'
 
   - name: displayName
     type: string
-    default: 'Stage - Release Tagging'
+    default: 'Stage - Release Tag and Artifact'
 
   - name: releaseType
     type: string
@@ -20,17 +20,37 @@ parameters:
   #   type: string
   #   default: ''
 
-  - name: releaseTagBranch
+  - name: releaseBranch
     type: string
     default: 'main'
+
+  - name: universalFeedNameApp
+    type: string
+    default: ''
+
+  - name: universalPackageName
+    type: string
+    default: 'App'
+  
+  - name: packageDescription
+    type: string
+    default: 'Application Artifact'
+
+  - name: gitUserName
+    type: string
+    default: 'Azure DevOps Build Service'
+
+  - name: gitUserEmail
+    type: string
+    default: 'ado-build-service-bot@unilever.com'
 
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: ${{ parameters.displayName }}
 #  dependsOn: ${{ parameters.dependsOn }}
   jobs:
-    - job: TagReleaseJob
-      displayName: "Job Validate User and Tag Release"
+    - job: ReleaseJob
+      displayName: "Tag Release and Artifact Publish"
       steps:
         - checkout: self
           persistCredentials: true
@@ -115,9 +135,15 @@ stages:
                 ;;
             esac
 
-            NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
-            echo "New tag to create: $NEW_TAG"
-            echo "##vso[task.setvariable variable=new_tag]$NEW_TAG"
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            NEW_TAG="v${NEW_VERSION}"
+
+            echo "New tag: $NEW_TAG"
+            echo "New version: $NEW_VERSION"
+
+            echo "##vso[task.setvariable variable=new_tag;isOutput=true]$NEW_TAG"
+            echo "##vso[task.setvariable variable=new_version;isOutput=true]$NEW_VERSION"
+          name: calversion
           displayName: "Auto-calculate New Semantic Version"
           env:
             RELEASE_TYPE: ${{ parameters.releaseType }}
@@ -125,19 +151,64 @@ stages:
 
         - script: |
             echo "Configuring Git user..."
-            git config user.name "Azure DevOps Build Service"
-            git config user.email "ado-build-service-bot@unilever.com"
+            git config user.name "${{ parameters.gitUserName }}"
+            git config user.email "${{ parameters.gitUserEmail }}"
 
             echo "Fetching branch..."
-            git fetch origin ${{ parameters.releaseTagBranch }}
-            git checkout ${{ parameters.releaseTagBranch }}
-            git pull origin ${{ parameters.releaseTagBranch }}
+            git fetch origin ${{ parameters.releaseBranch }}
+            git checkout ${{ parameters.releaseBranch }}
+            git pull origin ${{ parameters.releaseBranch }}
 
             echo "Checking for existing tag..."
             git fetch --tags
-            echo "Creating annotated tag: $(new_tag)"
-            git tag -a "$(new_tag)" -m "Release $(new_tag)"
+            echo "Creating annotated tag: $(calversion.new_tag)"
+            git tag -a "$(calversion.new_tag)" -m "Release $(calversion.new_tag)"
 
             echo "Pushing tag to origin..."
-            git push origin $(new_tag)
+            git push origin $(calversion.new_tag)
           displayName: "Create and Push New Git Tag in ADO Repo"
+        
+        
+        # Download the previously published build artifact
+        - task: DownloadBuildArtifacts@0
+          displayName: 'Download Build Artifact'
+          inputs:
+            buildType: 'current'
+            downloadType: 'single'
+            artifactName: 'Build-Drop'
+            downloadPath: '$(Pipeline.Workspace)/build'
+        
+        # Prepare a publish folder (Universal Packages requirement)
+        - bash: |
+            set -euo pipefail
+            PUBLISH_DIR="$(Build.ArtifactStagingDirectory)/upack"
+            rm -rf "$PUBLISH_DIR"
+            mkdir -p "$PUBLISH_DIR"
+
+            # Move/copy the zip (or your app folder) into publish dir
+            # Assuming your build published a ZIP named $(Build.SourceVersion).zip in the artifact
+            SRC_ZIP="$(Pipeline.Workspace)/build/Build-Drop/$(Build.SourceVersion).zip"
+            if [ ! -f "$SRC_ZIP" ]; then
+              echo "Could not find $SRC_ZIP. Listing for debugging:"
+              find "$(Pipeline.Workspace)/build" -maxdepth 3 -type f -print
+              exit 1
+            fi
+
+            cp "$SRC_ZIP" "$PUBLISH_DIR/"
+            # Including a readme for traceability
+            echo "commit=$(Build.SourceVersion)" > "$PUBLISH_DIR/readme-ci-cd.txt"
+            echo "tag=$(calversion.new_tag)" >> "$PUBLISH_DIR/readme-ci-cd.txt"
+          displayName: 'Stage contents for Universal Package'
+
+
+        - task: UniversalPackages@0
+          displayName: 'Publish Pipeline Logs Universal Package'
+          inputs:
+            command: 'publish'
+            publishDirectory: '$(Build.ArtifactStagingDirectory)/upack'
+            feedsToUse: 'internal' #Internal to Organization
+            vstsFeedPublish: '${{ parameters.universalFeedNameApp }}'
+            vstsFeedPackagePublish: '${{ parameters.universalPackageName }}'
+            versionOption: 'custom'
+            versionPublish: '$(calversion.new_version)'
+            packagePublishDescription: '${{ parameters.packageDescription }}'

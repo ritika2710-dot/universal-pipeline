@@ -1,4 +1,4 @@
-#templates/validate-branch-naming.yaml
+#/stages/validation/branch-name-validation.yml
 parameters:
   - name: stageName
     type: string
@@ -28,19 +28,55 @@ stages:
       - job: ${{ parameters.jobName }}
         displayName: ${{ parameters.jobDisplayName }}
         steps:
-          - script: |
+          - bash: |
+
+              set -euo pipefail
+
               echo "Build.SourceBranch: $(Build.SourceBranch)"
-              echo "System.PullRequest.SourceBranch: $(System.PullRequest.SourceBranch)"
+              echo "PR Source: $(System.PullRequest.SourceBranch)"
+              echo "PR Target: $(System.PullRequest.TargetBranch)"
 
-              branch_name="$(System.PullRequest.SourceBranch)"
-              branch_name="${branch_name#refs/heads/}"
+              src_branch="$(System.PullRequest.SourceBranch)"
+              tgt_branch="$(System.PullRequest.TargetBranch)"
 
-              echo "Branch name for validation: $branch_name"
+              # Normalize (strip refs/heads/)
+              src_branch="${src_branch#refs/heads/}"
+              tgt_branch="${tgt_branch#refs/heads/}"
 
-              if [[ "$branch_name" =~ ${{ parameters.branchRegex }} ]]; then
-                echo "Branch name is valid."
-              else
-                echo "Branch name '$branch_name' does not follow the naming convention."
+              echo "Normalized Source: $src_branch"
+              echo "Normalized Target: $tgt_branch"
+
+              # Quick sanity checks
+              if [ -z "$src_branch" ] || [ -z "$tgt_branch" ]; then
+                echo "Missing PR branch info. Ensure this stage runs only for PRs."
                 exit 1
               fi
-            displayName: 'Check Branch Name'
+
+              # Allowed patterns:
+              # 1) feature/* -> develop
+              if [[ "$src_branch" =~ ^feature\/.+$ && "$tgt_branch" == "develop" ]]; then
+                echo "Allowed: feature/* -> develop"
+                exit 0
+              fi
+
+              # 2) develop -> main
+              if [[ "$src_branch" == "develop" && "$tgt_branch" == "main" ]]; then
+                echo "Allowed: develop -> main"
+                exit 0
+              fi
+
+              # 3) hotfix/* -> main
+              if [[ "$src_branch" =~ ^hotfix\/.+$ && "$tgt_branch" == "main" ]]; then
+                echo "Allowed: hotfix/* -> main"
+                exit 0
+              fi
+
+              echo "INVALID PR MERGE:"
+              echo "Source: $src_branch"
+              echo "Target: $tgt_branch"
+              echo "Allowed:"
+              echo "  - feature/* -> develop"
+              echo "  - develop   -> main"
+              echo "  - hotfix/*  -> main"
+              exit 1
+            displayName: 'Validate allowed PR source → target rules'

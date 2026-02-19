@@ -1,13 +1,13 @@
-# python-build-and-test.yaml
+# python-build-and-test.yml
 parameters:
   - name: pythonVersion
     type: string
     default: '3.11'
-  
+
   - name: requirementsFile
     type: string
     default: 'requirements.txt'
-  
+
   - name: coverageReportPath
     type: string
     default: 'coverage.xml'
@@ -23,30 +23,45 @@ parameters:
   - name: artifactName
     type: string
     default: 'Build-Drop'
-  
-  # Containarized Application
+
+  - name: projectPath
+    type: string
+    default: '.'
+    description: 'Path to the project root where requirements.txt is located'
+
+  - name: archiveSourcePath
+    type: string
+    default: '.'
+
+  - name: archiveExclusions
+    type: object
+    default:
+      - '**/.azure-pipelines/**'
+      - '**/.github/**'
+      - '**/.git/**'
+      - '**/__pycache__/**'
+      - '**/*.pyc'
+      - '**/.pytest_cache/**'
+      - '**/.coverage'
+      - '**/venv/**'
+      - '**/node_modules/**'
 
   - name: isContainerized
     type: boolean
     default: false
 
-  # - name: Dockerfile
-  #   type: string
-  #   default: '**/Dockerfile'
+  - name: Dockerfile
+    type: string
+    default: '**/Dockerfile'
 
-  # - name: dockerBuildContext
-  #   type: string
-  #   default: '.'
+  - name: dockerBuildContext
+    type: string
+    default: '.'
 
-  # - name: dockerRepository
-  #   type: string
-  #   default: ''
+  - name: dockerTags
+    type: string
+    default: 'latest'
 
-  # - name: dockerTags
-  #   type: string
-  #   default: 'latest'
-
-# Pipeline template starts here
 
 stages:
 - stage: BuildStage
@@ -58,102 +73,110 @@ stages:
     - checkout: self
       fetchDepth: 1
 
-    # Step 1: Use Python - Specific Version
     - task: UsePythonVersion@0
       displayName: Use Python ${{ parameters.pythonVersion }}
       inputs:
         versionSpec: ${{ parameters.pythonVersion }}
 
-    # Step 2: Install dependencies
     - task: Bash@3
       displayName: Install Application Dependencies
       inputs:
         targetType: inline
         script: |
-          pip${{ parameters.pythonVersion }} install --target .python_packages/lib/site-packages -r ${{ parameters.requirementsFile }}
+          set -e
+          PROJECT_PATH="${{ parameters.projectPath }}"
+          REQUIREMENTS_FILE="$PROJECT_PATH/${{ parameters.requirementsFile }}"
+          if [ ! -d "$PROJECT_PATH/venv" ]; then
+            python -m venv "$PROJECT_PATH/venv"
+          fi
+          # Activate the venv and install using its pip to ensure correct Python/pip pairing
+          source "$PROJECT_PATH/venv/bin/activate"
+          python -m pip install --upgrade pip
+          echo "Installing dependencies from: $REQUIREMENTS_FILE into venv"
+          if [ -f "$REQUIREMENTS_FILE" ]; then
+            pip${{ parameters.pythonVersion }} install --target "$PROJECT_PATH/.python_packages/lib/site-packages" -r "$REQUIREMENTS_FILE"
+          else
+            echo "ERROR: Requirements file not found at $REQUIREMENTS_FILE"
+            exit 1
+          fi
 
-    # # Step 3: Pytest with Coverage
-    # - task: Bash@3
-    #   displayName: Run Pytest with Coverage
-    #   inputs:
-    #     targetType: inline
-    #     script: |
-    #       source venv/bin/activate
-    #       pip install pytest pytest-cov
-    #       echo "Running tests..."
-    #       mkdir -p $(dirname ${{ parameters.testResultsPath }})
-    #       pytest --junitxml=${{ parameters.testResultsPath }} --cov=. --cov-report=xml
-      
-    # Step 3: Pytest with Coverage
     - task: Bash@3
       displayName: Run Pytest with Coverage (gracefully handle no tests)
       inputs:
         targetType: inline
         script: |
-          set -e  # Fail on real errors
-              
-          # Create venv if it doesn't exist
-          if [ ! -d "venv" ]; then
-            echo "Virtual environment not found. Creating..."
-            python3 -m venv venv
+          set -e
+          PROJECT_PATH="${{ parameters.projectPath }}"
+          mkdir -p "$(Build.ArtifactStagingDirectory)"
+          if [ ! -d "$PROJECT_PATH/venv" ]; then
+            python3 -m venv "$PROJECT_PATH/venv"
           fi
-          source venv/bin/activate
+          source "$PROJECT_PATH/venv/bin/activate"
           pip install pytest pytest-cov
-
-          echo "Checking for test files..."
-          mkdir -p $(dirname ${{ parameters.testResultsPath }})
-          mkdir -p coverage
-
-          # Run pytest and capture exit code
-          echo "Running pytest with coverage..."
-          pytest --junitxml=${{ parameters.testResultsPath }} \
-                --cov=. \
-                --cov-report=xml:${{ parameters.coverageReportPath }} \
-                --cov-fail-under=0 || exit_code=$?
-
-          # Handle pytest exit codes gracefully
+          echo "Running pytest from $PROJECT_PATH"
+          pytest -q --junitxml="$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.testResultsPath }})" \
+            --cov="$PROJECT_PATH" --cov-report=xml:"$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.coverageReportPath }})" || exit_code=$?
           if [ "${exit_code:-0}" -eq 5 ]; then
-            echo "No tests were collected. Creating placeholder reports..."
-            echo "##vso[task.logissue type=warning]No tests found. Skipping pytest and coverage."
-            echo '<testsuite name="no-tests" tests="0" errors="0" failures="0" skipped="0"></testsuite>' \
-              > ${{ parameters.testResultsPath }}
-            echo '<?xml version="1.0"?><coverage branch-rate="0" line-rate="0" version="5.0" timestamp="'$(date +%s)'"><sources/><packages/></coverage>' \
-              > ${{ parameters.coverageReportPath }}
+            echo "No tests collected"
+            echo '<testsuite name="no-tests" tests="0" errors="0" failures="0" skipped="0"></testsuite>' > "$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.testResultsPath }})"
+            echo '<?xml version="1.0"?><coverage></coverage>' > "$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.coverageReportPath }})"
           elif [ "${exit_code:-0}" -ne 0 ]; then
-            echo "Pytest failed with exit code ${exit_code}. Failing the job."
+            echo "Pytest failed with exit code ${exit_code}"
             exit ${exit_code}
-          else
-            echo "Pytest and coverage ran successfully."
           fi
 
-
-
-    # Step 4: Publish Test Results
     - task: PublishTestResults@2
       inputs:
         testResultsFormat: 'JUnit'
-        testResultsFiles: '**/test-results.xml'
+        testResultsFiles: '$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.testResultsPath }})'
         failTaskOnFailedTests: true
-        condition: succeededOrFailed()
-        displayName: 'Publish Test Results to Azure DevOps'
+      condition: succeededOrFailed()
+      displayName: 'Publish Test Results to Azure DevOps'
 
-    # Step 5: Archive Build Files
-    - ${{ if and(eq(parameters.isContainerized, false), ne(variables['Build.Reason'], 'PullRequest')) }}:
-      - task: ArchiveFiles@2
-        displayName: 'Archive files'
+    - task: PublishCodeCoverageResults@2
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.coverageReportPath }})'
+      condition: succeededOrFailed()
+      displayName: 'Publish Code Coverage to Azure DevOps'
+
+    - task: Bash@3
+      displayName: 'Collect test and coverage artifacts (ensure names)'
+      inputs:
+        targetType: inline
+        script: |
+          mkdir -p "$(Build.ArtifactStagingDirectory)"
+          echo "Artifacts in $(Build.ArtifactStagingDirectory):"
+          ls -la "$(Build.ArtifactStagingDirectory)" || true
+
+    - ${{ if eq(parameters.isContainerized, true) }}:
+      - task: Bash@3
+        displayName: 'Docker Image Build (local)'
         inputs:
-          rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
-          includeRootFolder: false
+          targetType: inline
+          script: |
+            set -e
+            IMAGE_TAG="build-image:${{ parameters.dockerTags }}-$(Build.BuildId)"
+            echo "Building image $IMAGE_TAG"
+            docker build -f ${{ parameters.Dockerfile }} -t $IMAGE_TAG ${{ parameters.dockerBuildContext }}
+            echo "Saving image $IMAGE_TAG"
+            mkdir -p "$(Build.ArtifactStagingDirectory)"
+            docker save -o "$(Build.ArtifactStagingDirectory)/image.tar" "$IMAGE_TAG"
+
+    - ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+      - task: ArchiveFiles@2
+        displayName: 'Archive Project Files for Deployment'
+        inputs:
+          rootFolderOrFile: '$(System.DefaultWorkingDirectory)/${{ parameters.projectPath }}'
+          includeRootFolder: true
           archiveType: 'zip'
           archiveFile: '${{ parameters.archiveFileName }}'
           replaceExistingArchive: true
 
-    # Step 6: Publish Build Artifcats
-    - ${{ if and(eq(parameters.isContainerized, false), ne(variables['Build.Reason'], 'PullRequest')) }}:
-      - task: PublishBuildArtifacts@1
+    - ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+      - task: PublishPipelineArtifact@1
         displayName: 'Publish Artifact: ${{ parameters.artifactName }}'
         inputs:
-          PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-          ArtifactName: '${{ parameters.artifactName }}'
-          publishLocation: 'Container'
-
+          targetPath: '$(Build.ArtifactStagingDirectory)'
+          artifact: '${{ parameters.artifactName }}'
+          publishLocation: 'pipeline'

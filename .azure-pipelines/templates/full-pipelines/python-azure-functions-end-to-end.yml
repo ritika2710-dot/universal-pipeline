@@ -7,32 +7,6 @@ parameters:
   type: string
   default: ''
 
-#Temporary Flag for Building; Delete this post build
-- name: runValidate
-  type: boolean
-  default: true
-
-- name: runBuild
-  type: boolean
-  default: true
-
-- name: runScan
-  type: boolean
-  default: true
-
-- name: runReleaseTag
-  type: boolean
-  default: true
-
-- name: runLogCollection
-  type: boolean
-  default: true
-
-- name: runDeployment
-  type: boolean
-  default: true
-  
-
 # # Build Configuration
 # - name: runUnitTests
 #   type: boolean
@@ -60,10 +34,6 @@ parameters:
   type: string
   default: 'Validate Branch Naming Convention'
 
-- name: branchRegex
-  type: string
-  default: '^(develop|feature|bugfix|hotfix|release)/.+$'
-
 #Build Parameters
 
 - name: pythonVersion
@@ -85,6 +55,10 @@ parameters:
 - name: artifactName
   type: string
   default: 'Build-Drop'
+
+- name: projectPath
+  type: string
+  default: '.'
 
 #Containarized Application
 
@@ -179,23 +153,11 @@ parameters:
   default: true
 
  #Tag Release
-- name: releaseTagStageName
+- name: releasedisplayName
   type: string
-  default: 'ReleaseTagStage'
+  default: 'Stage - Release Tag and Artifact'
 
-- name: releaseTagdisplayName
-  type: string
-  default: 'Stage - Release Tagging'
-
-- name: gitUserName
-  type: string
-  default: ''
-
-- name: gitUserEmail
-  type: string
-  default: ''
-
-- name: releaseTagBranch
+- name: releaseBranch
   type: string
   default: 'develop'
 
@@ -203,17 +165,16 @@ parameters:
   type: string
   default: 'patch'
 
-# Deployment
-- name: azureSubscriptionServiceConnection
+- name: universalFeedNameApp
   type: string
   default: ''
 
-- name: functionAppName
+- name: universalPackageName
   type: string
-  default: ''
+  default: 'App'
 
 # Log Collection
-- name: universalFeedName
+- name: logUniversalFeedName
   type: string
   default: ''
 
@@ -243,7 +204,7 @@ parameters:
 #   - webapp
 #   - aks
 
-# Environment Configuration
+# Deployment Environment Configuration
 - name: environments
   type: object
   default:
@@ -261,81 +222,83 @@ stages:
 # ------------------------------------------------------------
 # Stage 1: Branch Name Validation (PR only)
 # ------------------------------------------------------------
-- ${{ if and(eq(parameters.runValidate, true), eq(variables['Build.Reason'], 'PullRequest')) }}:
+- ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
   - template: ../stages/validation/branch-name-validation.yml
     parameters:
       stageName: ${{ parameters.stageName }}
       displayName: ${{ parameters.displayName }}
       jobName: ${{ parameters.jobName }}
       jobDisplayName: ${{ parameters.jobDisplayName }}
-      branchRegex: ${{ parameters.branchRegex }}
 
 # ------------------------------------------------------------
 # Stage 2: Build & Test (Node.js)
 # ------------------------------------------------------------
 
-- ${{ if eq(parameters.runBuild, true) }}:
-  - template: ../stages/build/python-build-and-test.yml
-    parameters:
-      pythonVersion: ${{ parameters.pythonVersion }}
-      requirementsFile: ${{ parameters.requirementsFile }}
-      testResultsPath: ${{ parameters.testResultsPath }}
-      archiveFileName: ${{ parameters.archiveFileName }}
-      artifactName: ${{ parameters.artifactName }}
-      isContainerized: ${{ parameters.isContainerized }}
-      # dockerBuildContext: ${{ parameters.dockerBuildContext }}
-      # dockerRepository: ${{ parameters.dockerRepository }}
-      # Dockerfile: ${{ parameters.Dockerfile }}
-      # dockerTags: ${{ parameters.dockerTags }}
+- template: ../stages/build/python-build-and-test.yml
+  parameters:
+    pythonVersion: ${{ parameters.pythonVersion }}
+    requirementsFile: ${{ parameters.requirementsFile }}
+    testResultsPath: ${{ parameters.testResultsPath }}
+    archiveFileName: ${{ parameters.archiveFileName }}
+    artifactName: ${{ parameters.artifactName }}
+    projectPath: ${{ parameters.projectPath }}
+    isContainerized: ${{ parameters.isContainerized }}
+    # dockerBuildContext: ${{ parameters.dockerBuildContext }}
+    # dockerRepository: ${{ parameters.dockerRepository }}
+    # Dockerfile: ${{ parameters.Dockerfile }}
+    # dockerTags: ${{ parameters.dockerTags }}
 
 # ------------------------------------------------------------
 # Stage 3: Run Scan
 # ------------------------------------------------------------
 
-- ${{ if eq(parameters.runScan, true) }}:
-  - template: ../stages/scan/python-quality-and-security-scan.yml
-    parameters:
-      pythonVersion: ${{ parameters.pythonVersion }}
-      sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
-      sonarQubeServiceConnection: ${{ parameters.sonarQubeServiceConnection }}
-      sonarQubeProjectKey: ${{ parameters.sonarQubeProjectKey }}
-      sonarQubeUrl: ${{ parameters.sonarQubeUrl }}
-      sonarQubeToken: ${{ parameters.sonarQubeToken }}
-      branchFilter: ${{ parameters.branchFilter }}
-      wizClientId: ${{ parameters.wizClientId }}
-      wizClientSecret: ${{ parameters.wizClientSecret }}
-      wizServiceConnection: ${{ parameters.wizServiceConnection }}
-      wizScanPolicies: ${{ parameters.wizScanPolicies }}
-      wizFailOnSeverity: ${{ parameters.wizFailOnSeverity }}
-      wizPolicyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
-      wizSucceedOnFailures: ${{ parameters.wizSucceedOnFailures }}
-      wizContainerSucceedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
-      wizContainerimage: ${{ parameters.wizContainerimage }}
-      wizContainerpolicyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
-      wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
-      isContainerized: ${{ parameters.isContainerized }}
-      dockerBuildContext: ${{ parameters.dockerBuildContext }}
-      dockerRepository: ${{ parameters.dockerRepository }}
-      Dockerfile: ${{ parameters.Dockerfile }}
-      dockerTags: ${{ parameters.dockerTags }}
+- template: ../stages/scan/python-quality-and-security-scan.yml
+  parameters:
+    pythonVersion: ${{ parameters.pythonVersion }}
+    sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
+    sonarQubeServiceConnection: ${{ parameters.sonarQubeServiceConnection }}
+    sonarQubeProjectKey: ${{ parameters.sonarQubeProjectKey }}
+    sonarQubeUrl: ${{ parameters.sonarQubeUrl }}
+    sonarQubeToken: ${{ parameters.sonarQubeToken }}
+    branchFilter: ${{ parameters.branchFilter }}
+    wizClientId: ${{ parameters.wizClientId }}
+    wizClientSecret: ${{ parameters.wizClientSecret }}
+    wizServiceConnection: ${{ parameters.wizServiceConnection }}
+    wizScanPolicies: ${{ parameters.wizScanPolicies }}
+    wizFailOnSeverity: ${{ parameters.wizFailOnSeverity }}
+    wizPolicyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+    wizSucceedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+    wizContainerSucceedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+    wizContainerimage: ${{ parameters.wizContainerimage }}
+    wizContainerpolicyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+    wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+    isContainerized: ${{ parameters.isContainerized }}
+    dockerBuildContext: ${{ parameters.dockerBuildContext }}
+    dockerRepository: ${{ parameters.dockerRepository }}
+    Dockerfile: ${{ parameters.Dockerfile }}
+    dockerTags: ${{ parameters.dockerTags }}
+    artifactName: ${{ parameters.artifactName }}
+    projectPath: ${{ parameters.projectPath }}
 
 # ------------------------------------------------------------
 # Stage 4: Release Tagging
 # ------------------------------------------------------------
 
-- ${{ if and(eq(parameters.runReleaseTag, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
-  - template: ../stages/release-tag/release-tag.yml
+- ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+  - template: ../stages/release/release-tag-and-artifact.yml
     parameters:
-      stageName: ${{ parameters.releaseTagStageName }}
-      displayName: ${{ parameters.releaseTagdisplayName }}
-      releaseTagBranch: ${{ parameters.releaseTagBranch }} 
+      stageName: 'ReleaseStage'
+      displayName: ${{ parameters.releasedisplayName }}
+      releaseBranch: ${{ parameters.releaseBranch }} 
       releaseType: ${{ parameters.releaseType }} 
+      universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+      universalPackageName: ${{ parameters.universalPackageName }}
 
 # ------------------------------------------------------------
 # Stage 5: Deploy to Azure Functions
 # ------------------------------------------------------------
 
-- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
     - ${{ if ne(env.name, 'prod') }}:
       - template: ../stages/deploy/deploy-on-azure-functions.yml
@@ -349,10 +312,13 @@ stages:
           appType: 'functionAppLinux'
           appName: ${{ env.functionAppName }} 
           artifactName: 'Build-Drop'
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+          universalPackageVersion: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
           packagePath: ${{ parameters.archiveFileName }}
           resourceGroupName: ${{ env.resourceGroupName }}
 
-- ${{ if and(eq(parameters.runDeployment, true), ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
     - ${{ if eq(env.name, 'prod') }}:
       - template: ../stages/deploy/deploy-on-azure-functions.yml
@@ -366,6 +332,9 @@ stages:
           appType: 'functionAppLinux'
           appName: ${{ env.functionAppName }} 
           artifactName: 'Build-Drop'
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+          universalPackageVersion: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
           packagePath: ${{ parameters.archiveFileName }}
           resourceGroupName: ${{ env.resourceGroupName }}
 
@@ -373,7 +342,9 @@ stages:
 # Stage 6: Log Collection
 # ------------------------------------------------------------
 
-- ${{ if and(eq(parameters.runLogCollection, true), ne(variables['Build.Reason'], 'PullRequest')) }}:
+- ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
   - template: ../stages/logs/collect-logs.yml
     parameters:
-      universalFeedName: ${{ parameters.universalFeedName }}
+      logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+      logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
+      packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'

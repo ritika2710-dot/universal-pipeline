@@ -24,7 +24,7 @@ parameters:
     type: string
     default: 'Collect logs'
 
-  - name: universalFeedName
+  - name: universalFeedNameLog
     type: string
     default: ''
 
@@ -57,6 +57,7 @@ stages:
             $uri  = "$orgUrl$project/_apis/build/builds/$buildId/logs?api-version=7.1"
             $out  = "$(Pipeline.Workspace)/run-logs-$buildId.zip"
 
+            Write-Host "Downloading logs ZIP for build $buildId"
             $headers = @{
               "Authorization" = "Bearer $(System.AccessToken)"
               "Accept"        = "application/zip"
@@ -71,20 +72,15 @@ stages:
             Copy-Item $out -Destination (Join-Path $pkgDir "run-logs-$buildId.zip") -Force
           displayName: "Download logs ZIP for this run"
 
-        - task: PublishPipelineArtifact@1
-          displayName: "Publish run logs ZIP"
-          inputs:
-            targetPath: "$(Pipeline.Workspace)/run-logs-$(Build.BuildId).zip"
-            artifact: "${{ parameters.logsArtifactName }}"
-
         - task: UniversalPackages@0
           displayName: 'Publish Pipeline Logs Universal Package'
           condition: ${{ parameters.condition }}
           inputs:
             command: 'publish'
+            feedsToUse: 'internal'
             publishDirectory: '$(Build.ArtifactStagingDirectory)/universal-logs-package'
-            vstsFeedPublish: '${{ parameters.universalFeedName }}'
+            vstsFeedPublish: '${{ parameters.universalFeedNameLog }}'
             vstsFeedPackagePublish: '${{ parameters.logsPackageName }}'
             versionOption: 'custom'
-            versionPublish: '1.0.$(Build.BuildId)'
+            versionPublish: '$(Build.BuildId)'
             packagePublishDescription: '${{ parameters.packageDescription }}'

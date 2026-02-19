@@ -112,18 +112,31 @@ stages:
 
 
 
-    # steps:
-    # - task: DownloadBuildArtifacts@0
-    #   inputs:
-    #     buildType: 'current'
-    #     downloadType: 'single'
-    #     artifactName: ${{ parameters.artifactName }}
-    #     downloadPath: '$(Build.ArtifactStagingDirectory)'
+    steps:
+    - task: DownloadBuildArtifacts@0
+      inputs:
+        buildType: 'current'
+        downloadType: 'single'
+        artifactName: ${{ parameters.artifactName }}
+        downloadPath: '$(Build.ArtifactStagingDirectory)'
+    # Download package v1
 
-    # - task: AzureFunctionApp@1
-    #   displayName: 'Deploy Azure Function App'
-    #   inputs:
-    #     azureSubscription: ${{ parameters.azureSubscription }}
-    #     appType: ${{ parameters.appType }}
-    #     appName: ${{ parameters.appName }}
-    #     package: ${{ parameters.packagePath }}
+    - task: DownloadPackage@1
+      inputs:
+        packageType: 'upack' # 'maven' | 'npm' | 'nuget' | 'pypi' | 'upack' | 'cargo'. Required. Package Type. Default: nuget.
+        feed: ${{ parameters.artifactName }} # string. Required. Feed. 
+        #view: # string. View. 
+        definition: # string. Required. Package. 
+        version: ${{ parameters.versionNumber }} # string. Required. Version. 
+        downloadPath: '$(Build.ArtifactStagingDirectory)' # string. Required. Destination directory. Default: $(System.ArtifactsDirectory).
+      # Advanced
+        #files: '**' # string. Optional. Use when packageType = maven || packageType = pypi || packageType = upack. Files. Default: **.
+        #extract: true # boolean. Optional. Use when packageType = nuget || packageType = npm. Extract package contents. Default: true.
+
+    - task: AzureFunctionApp@1
+      displayName: 'Deploy Azure Function App'
+      inputs:
+        azureSubscription: ${{ parameters.azureSubscription }}
+        appType: ${{ parameters.appType }}
+        appName: ${{ parameters.appName }}
+        package: ${{ parameters.packagePath }}

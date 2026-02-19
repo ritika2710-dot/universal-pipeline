@@ -77,6 +77,10 @@ parameters:
   - name: wizContainerimage
     type: string
     default: ''
+
+  - name: artifactName
+    type: string
+    default: 'Build-Drop'
   
   - name: wizContainerpolicyHitsOnly
     type: boolean
@@ -87,6 +91,12 @@ parameters:
     default: true
 
 # Containarized Application
+
+  # Project Path
+  - name: projectPath
+    type: string
+    default: '.'
+    description: 'Path to the project root (same as build stage)'
 
   - name: isContainerized
     type: boolean
@@ -112,7 +122,7 @@ parameters:
 
 stages:
 - stage: CodeQualityStage
-  displayName: "Stage 3 - Code Quality & Code Coverage"
+  displayName: "Stage 3 - Code Quality & Security Analysis"
   variables:
     - name: sonarReportFilenamePR
       value: 'SonarScan-PR-$(System.PullRequest.PullRequestId).pdf'
@@ -120,8 +130,8 @@ stages:
       value: 'SonarScan-Build-$(Build.BuildId).pdf'
       
   jobs:
-    - job: SonarQubeCodeQuality
-      displayName: 'SonarQube Code Quality Check + Wiz Security Scan + Reports'
+    - job: CodeQualitySecurityScan
+      displayName: 'Code Quality Analysis & Security Scan'
       steps:
         # Step 1: Use Python - Specific Version
         - task: UsePythonVersion@0
@@ -129,85 +139,25 @@ stages:
           inputs:
            versionSpec: ${{ parameters.pythonVersion }}
 
-        # Step 2: Pylint
+        # Checkout sources (required for pylint/sonar)
+        - checkout: self
+
+        # Download build artifacts (test results, coverage, image tar)
+        - task: DownloadPipelineArtifact@2
+          displayName: 'Download Build Artifacts from Build stage'
+          inputs:
+            artifact: ${{ parameters.artifactName }}
+            path: '$(Pipeline.Workspace)/build'
+
+        # Step 2: Pylint Code Quality Check
         - script: |
-            source venv/bin/activate
             pip install pylint
+            cd ${{ parameters.projectPath }}
             pylint **/*.py --exit-zero
-          displayName: 'Run Pylint'
+          displayName: 'Run Pylint Code Quality Check'
 
-        # # Step 3: Pytest with Coverage
-        # - task: Bash@3
-        #   displayName: Run Pytest with Coverage
-        #   inputs:
-        #     targetType: inline
-        #     script: |
-        #       source venv/bin/activate
-        #       pip install pytest pytest-cov
-        #       echo "Running tests..."
-        #       mkdir -p $(dirname ${{ parameters.testResultsPath }})
-        #       pytest --junitxml=${{ parameters.testResultsPath }} --cov=. --cov-report=xml
-
-        # Step 4: Run Pytest with Coverage
-        - task: Bash@3
-          displayName: Run Pytest with Coverage (gracefully handle no tests)
-          inputs:
-            targetType: inline
-            script: |
-              set -e  # Fail on real errors
-                  
-              # Create venv if it doesn't exist
-              if [ ! -d "venv" ]; then
-                echo "Virtual environment not found. Creating..."
-                python3 -m venv venv
-              fi
-              source venv/bin/activate
-              pip install pytest pytest-cov
-
-              echo "Checking for test files..."
-              mkdir -p $(dirname ${{ parameters.testResultsPath }})
-              mkdir -p coverage
-
-              # Run pytest and capture exit code
-              echo "Running pytest with coverage..."
-              pytest --junitxml=${{ parameters.testResultsPath }} \
-                    --cov=. \
-                    --cov-report=xml:${{ parameters.coverageReportPath }} \
-                    --cov-fail-under=0 || exit_code=$?
-
-              # Handle pytest exit codes gracefully
-              if [ "${exit_code:-0}" -eq 5 ]; then
-                echo "No tests were collected. Creating placeholder reports..."
-                echo "##vso[task.logissue type=warning]No tests found. Skipping pytest and coverage."
-                echo '<testsuite name="no-tests" tests="0" errors="0" failures="0" skipped="0"></testsuite>' \
-                  > ${{ parameters.testResultsPath }}
-                echo '<?xml version="1.0"?><coverage branch-rate="0" line-rate="0" version="5.0" timestamp="'$(date +%s)'"><sources/><packages/></coverage>' \
-                  > ${{ parameters.coverageReportPath }}
-              elif [ "${exit_code:-0}" -ne 0 ]; then
-                echo "Pytest failed with exit code ${exit_code}. Failing the job."
-                exit ${exit_code}
-              else
-                echo "Pytest and coverage ran successfully."
-              fi
-
-
-
-        # Step 5: Publish Test Result report to Azure DevOps
-        - task: PublishTestResults@2
-          inputs:
-            testResultsFormat: 'JUnit'
-            testResultsFiles: '**/test-results.xml'
-            failTaskOnFailedTests: true
-          condition: succeededOrFailed()
-          displayName: 'Publish Test Results to Azure DevOps'
-
-        # Step 6: Publish Code Coverage Result to Azure DevOps
-        - task: PublishCodeCoverageResults@2
-          inputs:
-            codeCoverageTool: 'Cobertura'
-            summaryFileLocation: ${{ parameters.coverageReportPath }}
-          condition: succeededOrFailed()
-          displayName: 'Publish Code Coverage to Azure DevOps'
+        # NOTE: Unit tests run in BUILD stage (python-build-and-test.yml)
+        # This SCAN stage focuses on code quality and security analysis only
           
 
         # Step 7: SonarQube Prepare
@@ -221,11 +171,11 @@ stages:
             extraProperties: |
               sonar.projectVersion=1.0
               sonar.python.version=${{ parameters.pythonVersion }}
-              sonar.sources=.
+              sonar.sources=${{ parameters.projectPath }}
               sonar.language=py
               sonar.sourceEncoding=UTF-8
               sonar.exclusions=**/__pycache__/**,**/tests/**
-              sonar.python.coverage.reportPaths=${{ parameters.coverageReportPath }}
+              sonar.python.coverage.reportPaths=$(Pipeline.Workspace)/build/${{ parameters.coverageReportPath }}
 #              sonar.qualitygate.wait=true
 
         # Step 8: SonarQube Analyze
@@ -239,13 +189,7 @@ stages:
           displayName: Publish SonarQube Quality Gate
 
 
-        #Step 10: Publish Code Coverage Results
-        - task: PublishCodeCoverageResults@2
-          inputs:
-            codeCoverageTool: 'Cobertura'
-            summaryFileLocation: ${{ parameters.coverageReportPath }}
-          condition: succeededOrFailed()
-          displayName: 'Publish Code Coverage to Azure DevOps'
+        # NOTE: Code coverage published in BUILD stage (python-build-and-test.yml)
 
         #Step 11: Download SonarQube PR issues
         - script: |
@@ -374,12 +318,12 @@ stages:
             sonarReportFilenamePR: $(sonarReportFilenamePR)
 
         #Step 12: Publish SonarQube PR issues Report PDF
-        - task: PublishBuildArtifacts@1
+        - task: PublishPipelineArtifact@1
           displayName: 'Publish SonarQube Scan PR issues Report'
           inputs:
             PathtoPublish: '$(sonarReportFilenamePR)'
             ArtifactName: ${{ parameters.sonarReportArtifactName }}
-            PublishLocation: 'Container'
+            PublishLocation: 'pipeline'
           condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
 
         # Step 13: Get SonarQube Security Scan Report - PDF
@@ -413,11 +357,11 @@ stages:
             branchName: ${{ parameters.branchName }}
 
         # Step 14: Publish SonarQube Security Scan Report
-        - task: PublishBuildArtifacts@1
+        - task: PublishPipelineArtifact@1
           displayName: 'Publish SonarQube Build Report'
           inputs:
-            PathtoPublish: '$(sonarReportFilenameBuild)'
-            ArtifactName: ${{ parameters.sonarReportArtifactName }}
+            targetPath: '$(sonarReportFilenameBuild)'
+            artifact: ${{ parameters.sonarReportArtifactName }}
           condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
 
         # - task: Bash@3
@@ -465,12 +409,12 @@ stages:
 
 
         # Step 17: Publish SonarQube Regulatory Report
-        - task: PublishBuildArtifacts@1
+        - task: PublishPipelineArtifact@1
           displayName: 'Publish SonarQube Regulatory Report'
           inputs:
-            PathtoPublish: 'Sonar-Regulatory-Report.zip'
-            ArtifactName: ${{ parameters.sonarReportArtifactName }}
-            PublishLocation: 'Container'
+            targetPath: 'Sonar-Regulatory-Report.zip'
+            artifact: ${{ parameters.sonarReportArtifactName }}
+            publishLocation: 'pipeline'
           condition: and(succeeded(), eq(variables['Build.SourceBranch'], '${{ parameters.branchFilter }}'), ne(variables['Build.Reason'], 'PullRequest'))
 
 
@@ -485,35 +429,50 @@ stages:
             policyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
             succeedOnFailures: ${{ parameters.wizSucceedOnFailures }}
             scanTags: 'directory'
-            path: '.'
+            path: '${{ parameters.projectPath }}'
             scanPolicies: ${{ parameters.wizScanPolicies }}
             useServiceConnection: true
             serviceConnectionId: ${{ parameters.wizServiceConnection }}
 
 
-        # Step 19: Docker Container Image Build
+        # Step 19: Load built Docker image (from Build artifacts) and set variable for scanning
         - ${{ if eq(parameters.isContainerized, true) }}:
-          - task: Docker@2
-            displayName: 'Docker Image Build'
+          - task: Bash@3
+            displayName: 'Load built image from artifact (if present) or use provided image'
             inputs:
-              command: 'build' 
-              dockerfile: '${{ parameters.Dockerfile }}' 
-              repository: '${{ parameters.dockerRepository }}' 
-              buildContext: '${{ parameters.dockerBuildContext }}'
-              tags: |
-                ${{ parameters.dockerTags }}
+              targetType: inline
+              script: |
+                set -e
+                IMAGE_TAR="$(Pipeline.Workspace)/build/image.tar"
+                if [ -f "$IMAGE_TAR" ]; then
+                  echo "Found image tar: $IMAGE_TAR. Loading..."
+                  LOADED=$(docker load -i "$IMAGE_TAR" | sed -n "s/Loaded image: //p" | head -n1)
+                  echo "Loaded image: $LOADED"
+                  echo "##vso[task.setvariable variable=containerToScan]$LOADED"
+                elif [ -n "${{ parameters.wizContainerimage }}" ]; then
+                  echo "No local image tar found; using provided image: ${{ parameters.wizContainerimage }}"
+                  echo "##vso[task.setvariable variable=containerToScan]${{ parameters.wizContainerimage }}"
+                else
+                  echo "No image to scan (no image.tar and wizContainerimage not provided). Skipping container scan."
+                  echo "##vso[task.setvariable variable=containerToScan]"
+                fi
 
-        #Step 20: Wiz Container Scan
+        #Step 20: Wiz Container Scan (scans loaded image or specified image)
         - ${{ if eq(parameters.isContainerized, true) }}:
-          - task: wiz@0
-            displayName: Run Wiz Container Image Scan
-            inputs:
-              command: 'image'
-              clientid: ${{ parameters.wizClientId }}
-              secret: ${{ parameters.wizClientSecret }}
-              succeedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
-              image: ${{ parameters.wizContainerimage }}
-              policyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
-              fileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
-              useServiceConnection: false
-              sudo: true
+          - ${{ if ne(variables['containerToScan'], '') }}:
+            - task: wiz@0
+              displayName: Run Wiz Container Image Scan
+              inputs:
+                command: 'image'
+                clientid: ${{ parameters.wizClientId }}
+                secret: ${{ parameters.wizClientSecret }}
+                succeedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+                image: '$(containerToScan)'
+                policyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+                fileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+                useServiceConnection: false
+                sudo: true
+          - ${{ if eq(variables['containerToScan'], '') }}:
+            - script: |
+                echo "Skipping container scan because no image found/provided."
+              displayName: 'Skip container scan (no image)'
