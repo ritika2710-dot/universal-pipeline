@@ -77,7 +77,6 @@ stages:
           # Optionally download from Universal Packages feed when parameters provided
           - task: DownloadPackage@1
             displayName: 'Download Universal Package from feed'
-            condition: and(ne('${{ parameters.universalFeedNameApp }}',''), ne('${{ parameters.universalPackageVersion }}',''))
             inputs:
               packageType: 'upack'
               feed: '${{ parameters.universalFeedNameApp }}'
@@ -96,8 +95,6 @@ stages:
                 echo "##vso[task.setvariable variable=downloadedPackagePath]$FILE"
               fi
             displayName: 'Resolve downloaded package path'
-            condition: and(ne('${{ parameters.universalFeedNameApp }}',''), ne('${{ parameters.universalPackageVersion }}',''))
-
           # Download promoted artifact (pipeline artifact fallback)
           - download: current
             artifact: ${{ parameters.artifactName }}
