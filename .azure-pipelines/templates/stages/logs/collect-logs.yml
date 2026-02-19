@@ -24,7 +24,7 @@ parameters:
     type: string
     default: 'Collect logs'
 
-  - name: universalFeedNameLog
+  - name: logUniversalFeedName
     type: string
     default: ''
 
@@ -79,7 +79,7 @@ stages:
             command: 'publish'
             feedsToUse: 'internal'
             publishDirectory: '$(Build.ArtifactStagingDirectory)/universal-logs-package'
-            vstsFeedPublish: '${{ parameters.universalFeedNameLog }}'
+            vstsFeedPublish: '${{ parameters.logUniversalFeedName }}'
             vstsFeedPackagePublish: '${{ parameters.logsPackageName }}'
             versionOption: 'custom'
             versionPublish: '$(Build.BuildId)'
