@@ -212,36 +212,71 @@ stages:
 
 
             # Move/copy the zip (or your app folder) into publish dir
-            # Assuming your build published a ZIP named $(Build.SourceVersion).zip in the artifact
-            SRC_ZIP="$(Pipeline.Workspace)/build/Build-Drop/$(Build.SourceVersion).zip"
-            if [ -f "$SRC_ZIP" ]; then
-              echo "Found expected ZIP: $SRC_ZIP"
-            else
-              echo "Expected ZIP not found at $SRC_ZIP; searching for commit-named ZIP in Build-Drop"
-              SRC_ZIP=""
-              for f in "$(Pipeline.Workspace)/build/Build-Drop"/*.zip; do
-                [ -e "$f" ] || continue
-                base=$(basename "$f")
-                if echo "$base" | grep -Eq '^[0-9a-f]{7,40}\.zip$'; then
-                  SRC_ZIP="$f"
-                  echo "Found SHA-named ZIP: $SRC_ZIP"
+            # Try several likely locations where the build artifact might land
+            CANDIDATES=(
+              "$(Pipeline.Workspace)/build/Build-Drop"
+              "$(Pipeline.Workspace)/build"
+              "$(Pipeline.Workspace)/s"
+              "$(System.DefaultWorkingDirectory)"
+              "$(Pipeline.Workspace)"
+            )
+
+            SRC_ZIP=""
+
+            # Prefer the exact $(Build.SourceVersion).zip when present
+            for dir in "${CANDIDATES[@]}"; do
+              candidate="$dir/$(Build.SourceVersion).zip"
+              if [ -f "$candidate" ]; then
+                SRC_ZIP="$candidate"
+                echo "Found exact source-version ZIP: $SRC_ZIP"
+                break
+              fi
+            done
+
+            # If not found, prefer a SHA-named ZIP (7-40 hex chars)
+            if [ -z "$SRC_ZIP" ]; then
+              for dir in "${CANDIDATES[@]}"; do
+                if [ ! -d "$dir" ]; then
+                  continue
+                fi
+                for f in "$dir"/*.zip; do
+                  [ -e "$f" ] || continue
+                  base=$(basename "$f")
+                  if echo "$base" | grep -Eq '^[0-9a-f]{7,40}\.zip$'; then
+                    SRC_ZIP="$f"
+                    echo "Found SHA-named ZIP: $SRC_ZIP"
+                    break 2
+                  fi
+                done
+              done
+            fi
+
+            # Fallback to first ZIP found in candidates
+            if [ -z "$SRC_ZIP" ]; then
+              for dir in "${CANDIDATES[@]}"; do
+                if [ ! -d "$dir" ]; then
+                  continue
+                fi
+                SRC_ZIP=$(find "$dir" -maxdepth 1 -type f -name '*.zip' -print -quit || true)
+                if [ -n "$SRC_ZIP" ]; then
+                  echo "Falling back to first ZIP found: $SRC_ZIP"
                   break
                 fi
               done
+            fi
 
-              if [ -z "$SRC_ZIP" ]; then
-                echo "No SHA-named ZIP found; falling back to first ZIP in Build-Drop"
-                SRC_ZIP=$(find "$(Pipeline.Workspace)/build/Build-Drop" -maxdepth 1 -type f -name '*.zip' -print -quit || true)
-              fi
-
-              if [ -z "$SRC_ZIP" ]; then
-                echo "Could not find a ZIP in $(Pipeline.Workspace)/build/Build-Drop. Listing for debugging:"
-                find "$(Pipeline.Workspace)/build" -maxdepth 3 -type f -print
-                exit 1
-              fi
+            if [ -z "$SRC_ZIP" ]; then
+              echo "Could not find a ZIP in any candidate locations. Listing for debugging:"
+              for dir in "${CANDIDATES[@]}"; do
+                echo "Contents of $dir:" || true
+                ls -la "$dir" || true
+              done
+              exit 1
             fi
 
             cp "$SRC_ZIP" "$PUBLISH_DIR/"
+            # export which file we used for downstream visibility
+            echo "##vso[task.setvariable variable=stagedZip;isOutput=true]$(basename "$SRC_ZIP")"
             # Including a readme for traceability
             echo "commit=$(Build.SourceVersion)" > "$PUBLISH_DIR/readme-ci-cd.txt"
             echo "tag=$(calversion.new_tag)" >> "$PUBLISH_DIR/readme-ci-cd.txt"

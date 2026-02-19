@@ -197,57 +197,14 @@ stages:
             artifact: 'Build-Drop'
             path: '$(Pipeline.Workspace)/build'
 
-        # Universal package flow (default)
-        - bash: |
-            set -euo pipefail
-            PUBLISH_DIR="$(Build.ArtifactStagingDirectory)/upack"
-            rm -rf "$PUBLISH_DIR"
-            mkdir -p "$PUBLISH_DIR"
 
-            # Move/copy the zip (or your app folder) into publish dir
-            # Assuming your build published a ZIP named $(Build.SourceVersion).zip in the artifact
-            SRC_ZIP="$(Pipeline.Workspace)/build/Build-Drop/$(Build.SourceVersion).zip"
-            if [ -f "$SRC_ZIP" ]; then
-              echo "Found expected ZIP: $SRC_ZIP"
-            else
-              echo "Expected ZIP not found at $SRC_ZIP; searching for commit-named ZIP in Build-Drop"
-              SRC_ZIP=""
-              for f in "$(Pipeline.Workspace)/build/Build-Drop"/*.zip; do
-                [ -e "$f" ] || continue
-                base=$(basename "$f")
-                if echo "$base" | grep -Eq '^[0-9a-f]{7,40}\.zip$'; then
-                  SRC_ZIP="$f"
-                  echo "Found SHA-named ZIP: $SRC_ZIP"
-                  break
-                fi
-              done
-
-              if [ -z "$SRC_ZIP" ]; then
-                echo "No SHA-named ZIP found; falling back to first ZIP in Build-Drop"
-                SRC_ZIP=$(find "$(Pipeline.Workspace)/build/Build-Drop" -maxdepth 1 -type f -name '*.zip' -print -quit || true)
-              fi
-
-              if [ -z "$SRC_ZIP" ]; then
-                echo "Could not find a ZIP in $(Pipeline.Workspace)/build/Build-Drop. Listing for debugging:"
-                find "$(Pipeline.Workspace)/build" -maxdepth 3 -type f -print
-                exit 1
-              fi
-            fi
-
-            cp "$SRC_ZIP" "$PUBLISH_DIR/"
-            # Including a readme for traceability
-            echo "commit=$(Build.SourceVersion)" > "$PUBLISH_DIR/readme-ci-cd.txt"
-            echo "tag=$(calversion.new_tag)" >> "$PUBLISH_DIR/readme-ci-cd.txt"
-          displayName: 'Stage contents for Universal Package'
-
-        - task: UniversalPackages@0
-          displayName: 'Publish Pipeline Logs Universal Package'
+        - task: Docker@2
+          displayName: 'Build and Push Docker image to ACR'
           inputs:
-            command: 'publish'
-            publishDirectory: '$(Build.ArtifactStagingDirectory)/upack'
-            feedsToUse: 'internal' #Internal to Organization
-            vstsFeedPublish: '${{ parameters.universalFeedNameApp }}'
-            vstsFeedPackagePublish: '${{ parameters.universalPackageName }}'
-            versionOption: 'custom'
-            versionPublish: '$(calversion.new_version)'
-            packagePublishDescription: '${{ parameters.packageDescription }}'
+            command: 'buildAndPush'
+            containerRegistry: '${{ parameters.acrServiceConnection }}'
+            repository: '${{ parameters.acrRepository }}'
+            dockerfile: '${{ parameters.acrDockerfilePath }}'
+            buildContext: '${{ parameters.acrContextPath }}'
+            tags: |
+              $(calversion.new_version)
