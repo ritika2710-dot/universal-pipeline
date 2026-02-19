@@ -138,6 +138,10 @@ parameters:
   type: boolean
   default: true
 
+- name: runWiz
+  type: boolean
+  default: true
+  
  #Tag Release
 - name: releasedisplayName
   type: string
@@ -256,6 +260,7 @@ stages:
     dockerTags: ${{ parameters.dockerTags }}
     artifactName: ${{ parameters.artifactName }}
     projectPath: ${{ parameters.projectPath }}
+    runWiz: ${{ parameters.runWiz }}
 
 # ------------------------------------------------------------
 # Stage 4: Release Tagging
