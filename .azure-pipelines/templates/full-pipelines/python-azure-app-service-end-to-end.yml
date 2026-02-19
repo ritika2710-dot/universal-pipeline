@@ -163,6 +163,11 @@ parameters:
   type: string
   default: 'App'
 
+- name: dockerRepository
+  type: string
+  default: ''
+   
+
 # Deployment (Azure Web App specific)
 - name: azureSubscriptionServiceConnection
   type: string
@@ -225,7 +230,6 @@ stages:
     projectPath: ${{ parameters.projectPath }}
     isContainerized: ${{ parameters.isContainerized }}
     dockerBuildContext: ${{ parameters.dockerBuildContext }}
-    dockerRepository: ${{ parameters.dockerRepository }}
     Dockerfile: ${{ parameters.Dockerfile }}
     dockerTags: ${{ parameters.dockerTags }}
 
@@ -275,6 +279,7 @@ stages:
       releaseType: ${{ parameters.releaseType }} 
       universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
       universalPackageName: ${{ parameters.universalPackageName }}
+      dockerRepository: ${{ parameters.dockerRepository }}
 
 # ------------------------------------------------------------
 # Stage 5: Deploy to Azure Web App
