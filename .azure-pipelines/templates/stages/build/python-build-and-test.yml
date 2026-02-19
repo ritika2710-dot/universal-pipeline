@@ -163,20 +163,18 @@ stages:
             mkdir -p "$(Build.ArtifactStagingDirectory)"
             docker save -o "$(Build.ArtifactStagingDirectory)/image.tar" "$IMAGE_TAG"
 
-    - ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
-      - task: ArchiveFiles@2
-        displayName: 'Archive Project Files for Deployment'
-        inputs:
-          rootFolderOrFile: '$(System.DefaultWorkingDirectory)/${{ parameters.projectPath }}'
-          includeRootFolder: true
-          archiveType: 'zip'
-          archiveFile: '${{ parameters.archiveFileName }}'
-          replaceExistingArchive: true
+    - task: ArchiveFiles@2
+      displayName: 'Archive Project Files for Deployment'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/${{ parameters.projectPath }}'
+        includeRootFolder: true
+        archiveType: 'zip'
+        archiveFile: '${{ parameters.archiveFileName }}'
+        replaceExistingArchive: true
 
-    - ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
-      - task: PublishPipelineArtifact@1
-        displayName: 'Publish Artifact: ${{ parameters.artifactName }}'
-        inputs:
-          targetPath: '$(Build.ArtifactStagingDirectory)'
-          artifact: '${{ parameters.artifactName }}'
-          publishLocation: 'pipeline'
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Artifact: ${{ parameters.artifactName }}'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)'
+        artifact: '${{ parameters.artifactName }}'
+        publishLocation: 'pipeline'
