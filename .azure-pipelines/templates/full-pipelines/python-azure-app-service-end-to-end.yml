@@ -255,7 +255,6 @@ stages:
     wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
     isContainerized: ${{ parameters.isContainerized }}
     dockerBuildContext: ${{ parameters.dockerBuildContext }}
-    dockerRepository: ${{ parameters.dockerRepository }}
     Dockerfile: ${{ parameters.Dockerfile }}
     dockerTags: ${{ parameters.dockerTags }}
     artifactName: ${{ parameters.artifactName }}
@@ -275,7 +274,6 @@ stages:
       releaseType: ${{ parameters.releaseType }} 
       universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
       universalPackageName: ${{ parameters.universalPackageName }}
-      dockerRepository: ${{ parameters.dockerRepository }}
 
 # ------------------------------------------------------------
 # Stage 5: Deploy to Azure Web App
