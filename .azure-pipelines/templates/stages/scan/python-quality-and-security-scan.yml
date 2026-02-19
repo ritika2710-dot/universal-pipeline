@@ -90,6 +90,10 @@ parameters:
     type: boolean
     default: true
 
+  - name: runWiz
+    type: boolean
+    default: true
+
 # Containarized Application
 
   # Project Path
@@ -418,21 +422,34 @@ stages:
           condition: and(succeeded(), eq(variables['Build.SourceBranch'], '${{ parameters.branchFilter }}'), ne(variables['Build.Reason'], 'PullRequest'))
 
 
-        # Step 18: Wiz Directory Scan
-        - task: wiz@0
-          displayName: Run Wiz Directory Scan
-          inputs:
-            command: 'dir'
-            clientid: ${{ parameters.wizClientId }}
-            secret: ${{ parameters.wizClientSecret }}
-            failOnSeverity: ${{ parameters.wizFailOnSeverity }}
-            policyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
-            succeedOnFailures: ${{ parameters.wizSucceedOnFailures }}
-            scanTags: 'directory'
-            path: '${{ parameters.projectPath }}'
-            scanPolicies: ${{ parameters.wizScanPolicies }}
-            useServiceConnection: true
-            serviceConnectionId: ${{ parameters.wizServiceConnection }}
+        # Step 18: Wiz Directory Scan (conditionally included)
+        - ${{ if and(eq(parameters.runWiz, true), ne(parameters.wizServiceConnection, '')) }}:
+          - task: wiz@0
+            displayName: Run Wiz Directory Scan (service-connection)
+            inputs:
+              command: 'dir'
+              failOnSeverity: ${{ parameters.wizFailOnSeverity }}
+              policyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+              succeedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+              scanTags: 'directory'
+              path: '${{ parameters.projectPath }}'
+              scanPolicies: ${{ parameters.wizScanPolicies }}
+              useServiceConnection: true
+              serviceConnectionId: ${{ parameters.wizServiceConnection }}
+        - ${{ if and(eq(parameters.runWiz, true), and(eq(parameters.wizServiceConnection, ''), and(ne(parameters.wizClientId, ''), ne(parameters.wizClientSecret, '')))) }}:
+          - task: wiz@0
+            displayName: Run Wiz Directory Scan (client-credentials)
+            inputs:
+              command: 'dir'
+              clientid: ${{ parameters.wizClientId }}
+              secret: ${{ parameters.wizClientSecret }}
+              failOnSeverity: ${{ parameters.wizFailOnSeverity }}
+              policyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+              succeedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+              scanTags: 'directory'
+              path: '${{ parameters.projectPath }}'
+              scanPolicies: ${{ parameters.wizScanPolicies }}
+              useServiceConnection: false
 
 
         # Step 19: Load built Docker image (from Build artifacts) and set variable for scanning
@@ -457,11 +474,24 @@ stages:
                   echo "##vso[task.setvariable variable=containerToScan]"
                 fi
 
-        #Step 20: Wiz Container Scan (scans loaded image or specified image)
-        - ${{ if eq(parameters.isContainerized, true) }}:
+        #Step 20: Wiz Container Scan (conditionally included)
+        - ${{ if and(eq(parameters.runWiz, true), eq(parameters.isContainerized, true), ne(parameters.wizServiceConnection, '')) }}:
           - ${{ if ne(variables['containerToScan'], '') }}:
             - task: wiz@0
-              displayName: Run Wiz Container Image Scan
+              displayName: Run Wiz Container Image Scan (service-connection)
+              inputs:
+                command: 'image'
+                succeedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+                image: '$(containerToScan)'
+                policyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+                fileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+                useServiceConnection: true
+                serviceConnectionId: ${{ parameters.wizServiceConnection }}
+                sudo: true
+        - ${{ if and(eq(parameters.runWiz, true), eq(parameters.isContainerized, true), and(eq(parameters.wizServiceConnection, ''), and(ne(parameters.wizClientId, ''), ne(parameters.wizClientSecret, '')))) }}:
+          - ${{ if ne(variables['containerToScan'], '') }}:
+            - task: wiz@0
+              displayName: Run Wiz Container Image Scan (client-credentials)
               inputs:
                 command: 'image'
                 clientid: ${{ parameters.wizClientId }}
@@ -472,7 +502,7 @@ stages:
                 fileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
                 useServiceConnection: false
                 sudo: true
-          - ${{ if eq(variables['containerToScan'], '') }}:
-            - script: |
-                echo "Skipping container scan because no image found/provided."
-              displayName: 'Skip container scan (no image)'
+        - ${{ if or(eq(parameters.runWiz, false), eq(variables['containerToScan'], '')) }}:
+          - script: |
+              echo "Skipping container scan because no image found/provided or runWiz disabled."
+            displayName: 'Skip container scan (no image or disabled)'
