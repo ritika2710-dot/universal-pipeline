@@ -100,6 +100,14 @@ stages:
             exit 1
           fi
 
+    - bash: |
+        # expose filenames for Publish tasks (basename evaluated by shell)
+        testResultsFileName=$(basename "${{ parameters.testResultsPath }}")
+        coverageFileName=$(basename "${{ parameters.coverageReportPath }}")
+        echo "##vso[task.setvariable variable=testResultsFileName]$testResultsFileName"
+        echo "##vso[task.setvariable variable=coverageFileName]$coverageFileName"
+      displayName: 'Set test and coverage filenames'
+
     - task: Bash@3
       displayName: Run Pytest with Coverage (gracefully handle no tests)
       inputs:
@@ -114,12 +122,12 @@ stages:
           source "$PROJECT_PATH/venv/bin/activate"
           pip install pytest pytest-cov
           echo "Running pytest from $PROJECT_PATH"
-          pytest -q --junitxml="$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.testResultsPath }})" \
-            --cov="$PROJECT_PATH" --cov-report=xml:"$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.coverageReportPath }})" || exit_code=$?
+          pytest -q --junitxml="$(Build.ArtifactStagingDirectory)/$(testResultsFileName)" \
+            --cov="$PROJECT_PATH" --cov-report=xml:"$(Build.ArtifactStagingDirectory)/$(coverageFileName)" || exit_code=$?
           if [ "${exit_code:-0}" -eq 5 ]; then
             echo "No tests collected"
-            echo '<testsuite name="no-tests" tests="0" errors="0" failures="0" skipped="0"></testsuite>' > "$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.testResultsPath }})"
-            echo '<?xml version="1.0"?><coverage></coverage>' > "$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.coverageReportPath }})"
+            echo '<testsuite name="no-tests" tests="0" errors="0" failures="0" skipped="0"></testsuite>' > "$(Build.ArtifactStagingDirectory)/$(testResultsFileName)"
+            echo '<?xml version="1.0"?><coverage></coverage>' > "$(Build.ArtifactStagingDirectory)/$(coverageFileName)"
           elif [ "${exit_code:-0}" -ne 0 ]; then
             echo "Pytest failed with exit code ${exit_code}"
             exit ${exit_code}
@@ -128,7 +136,7 @@ stages:
     - task: PublishTestResults@2
       inputs:
         testResultsFormat: 'JUnit'
-        testResultsFiles: '$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.testResultsPath }})'
+        testResultsFiles: '$(Build.ArtifactStagingDirectory)/$(testResultsFileName)'
         failTaskOnFailedTests: true
       condition: succeededOrFailed()
       displayName: 'Publish Test Results to Azure DevOps'
@@ -136,7 +144,7 @@ stages:
     - task: PublishCodeCoverageResults@2
       inputs:
         codeCoverageTool: 'Cobertura'
-        summaryFileLocation: '$(Build.ArtifactStagingDirectory)/$(basename ${{ parameters.coverageReportPath }})'
+        summaryFileLocation: '$(Build.ArtifactStagingDirectory)/$(coverageFileName)'
       condition: succeededOrFailed()
       displayName: 'Publish Code Coverage to Azure DevOps'
 

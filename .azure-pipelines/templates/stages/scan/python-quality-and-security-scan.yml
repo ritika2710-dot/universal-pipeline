@@ -180,17 +180,24 @@ stages:
               sonar.sourceEncoding=UTF-8
               sonar.exclusions=**/__pycache__/**,**/tests/**
               sonar.python.coverage.reportPaths=$(Pipeline.Workspace)/build/${{ parameters.coverageReportPath }}
+              sonar.login=${{ parameters.sonarQubeToken }}
 #              sonar.qualitygate.wait=true
 
         # Step 8: SonarQube Analyze
         - task: SonarQubeAnalyze@7
           displayName: Run SonarQube Analysis
+          env:
+            SONAR_TOKEN: ${{ parameters.sonarQubeToken }}
+            SONAR_HOST_URL: ${{ parameters.sonarQubeUrl }}
 
         # Step 9: Publish SonarQube Quality Gate Results
         - task: SonarQubePublish@7
           inputs:
             pollingTimeoutSec: '300'
           displayName: Publish SonarQube Quality Gate
+          env:
+            SONAR_TOKEN: ${{ parameters.sonarQubeToken }}
+            SONAR_HOST_URL: ${{ parameters.sonarQubeUrl }}
 
 
         # NOTE: Code coverage published in BUILD stage (python-build-and-test.yml)
