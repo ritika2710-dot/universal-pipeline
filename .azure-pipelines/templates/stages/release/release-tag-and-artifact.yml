@@ -205,13 +205,13 @@ stages:
             mkdir -p "$PUBLISH_DIR"
 
             pwd
-            _____________
+            echo "_____________"
             ls
-            _____________
+            echo "_____________"
             ls $(Pipeline.Workspace)
-            _____________
+            echo "_____________"
             ls $(Pipeline.Workspace)/build
-            _____________
+            echo "_____________"
 
 
             # Move/copy the zip (or your app folder) into publish dir
