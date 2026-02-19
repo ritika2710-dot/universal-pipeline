@@ -204,13 +204,6 @@ stages:
             rm -rf "$PUBLISH_DIR"
             mkdir -p "$PUBLISH_DIR"
 
-            pwd
-            ls
-            ls $(Pipeline.Workspace)
-            ls $(Pipeline.Workspace)/build
-            ls $(Pipeline.Workspace)/build/Build-Drop
-
-
             # Move/copy the zip (or your app folder) into publish dir
             # Assuming your build published a ZIP named $(Build.SourceVersion).zip in the artifact
             SRC_ZIP="$(Pipeline.Workspace)/build/Build-Drop/$(Build.SourceVersion).zip"
