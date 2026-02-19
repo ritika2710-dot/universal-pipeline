@@ -43,6 +43,18 @@ parameters:
     type: string
     default: '$(Pipeline.Workspace)/Build-Drop/$(Build.SourceVersion).zip'
 
+  - name: universalFeedNameApp
+    type: string
+    default: ''
+
+  - name: universalPackageName
+    type: string
+    default: ''
+
+  - name: universalPackageVersion
+    type: string
+    default: ''
+
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: ${{ parameters.stageDisplayName }}
@@ -57,7 +69,35 @@ stages:
         deploy:
           steps:
 
-          # Download promoted artifact
+          # set default package path variable (can be overridden by universal download)
+          - bash: |
+              echo "##vso[task.setvariable variable=downloadedPackagePath]${{ parameters.packagePath }}"
+            displayName: 'Set default package path'
+
+          # Optionally download from Universal Packages feed when parameters provided
+          ${{ if and(ne(parameters.universalFeedNameApp, ''), ne(parameters.universalPackageVersion, '')) }}:
+          - task: DownloadPackage@1
+            displayName: 'Download Universal Package from feed'
+            inputs:
+              packageType: 'upack'
+              feed: '${{ parameters.universalFeedNameApp }}'
+              definition: '${{ parameters.universalPackageName }}'
+              version: '${{ parameters.universalPackageVersion }}'
+              downloadPath: '$(Pipeline.Workspace)/upack'
+
+          - bash: |
+              set -euo pipefail
+              FILE=$(find "$(Pipeline.Workspace)/upack" -type f -name '*.zip' -print -quit || true)
+              if [ -z "$FILE" ]; then
+                echo "No zip file found in downloaded package; setting package path to folder"
+                echo "##vso[task.setvariable variable=downloadedPackagePath]$(Pipeline.Workspace)/upack"
+              else
+                echo "Found package: $FILE"
+                echo "##vso[task.setvariable variable=downloadedPackagePath]$FILE"
+              fi
+            displayName: 'Resolve downloaded package path'
+
+          # Download promoted artifact (pipeline artifact fallback)
           - download: current
             artifact: ${{ parameters.artifactName }}
             displayName: Download Artifact
@@ -73,7 +113,7 @@ stages:
               resourceGroupName: ${{ parameters.resourceGroupName }}
               appType: 'webApp'
               appName: ${{ parameters.appName }}
-              package: ${{ parameters.packagePath }}
+              package: '$(downloadedPackagePath)'
 
           # ============================
           # Linux Web App
@@ -86,4 +126,4 @@ stages:
               resourceGroupName: ${{ parameters.resourceGroupName }}
               appType: 'webAppLinux'
               appName: ${{ parameters.appName }}
-              package: ${{ parameters.packagePath }}
+              package: '$(downloadedPackagePath)'
