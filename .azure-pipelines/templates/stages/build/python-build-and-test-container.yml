@@ -186,3 +186,16 @@ stages:
         targetPath: '$(Build.ArtifactStagingDirectory)'
         artifact: '${{ parameters.artifactName }}'
         publishLocation: 'pipeline'
+
+    - task: Bash@3
+      displayName: 'Docker Image Build (local)'
+      inputs:
+        targetType: inline
+        script: |
+          set -e
+          IMAGE_TAG="build-image:${{ parameters.dockerTags }}-$(Build.BuildId)"
+          echo "Building image $IMAGE_TAG"
+          docker build -f ${{ parameters.Dockerfile }} -t $IMAGE_TAG ${{ parameters.dockerBuildContext }}
+          echo "Saving image $IMAGE_TAG"
+          mkdir -p "$(Build.ArtifactStagingDirectory)"
+          docker save -o "$(Build.ArtifactStagingDirectory)/image.tar" "$IMAGE_TAG"
