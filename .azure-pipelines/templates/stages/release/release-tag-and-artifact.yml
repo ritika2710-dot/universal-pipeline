@@ -199,44 +199,29 @@ stages:
             artifactName: 'Build-Drop'
             downloadPath: '$(Pipeline.Workspace)/build'
 
-        # Container flow: build & push image to ACR
-        - ${{ if eq(parameters.isContainerized, true) }}:
-          - task: Docker@2
-            displayName: 'Build and Push Docker image to ACR'
-            inputs:
-              command: 'buildAndPush'
-              containerRegistry: '${{ parameters.acrServiceConnection }}'
-              repository: '${{ parameters.acrRepository }}'
-              dockerfile: '${{ parameters.acrDockerfilePath }}'
-              buildContext: '${{ parameters.acrContextPath }}'
-              tags: |
-                $(calversion.new_version)
-
         # Universal package flow (default)
-        - ${{ if eq(parameters.isContainerized, false) }}:
-          - bash: |
-              set -euo pipefail
-              PUBLISH_DIR="$(Build.ArtifactStagingDirectory)/upack"
-              rm -rf "$PUBLISH_DIR"
-              mkdir -p "$PUBLISH_DIR"
+        - bash: |
+            set -euo pipefail
+            PUBLISH_DIR="$(Build.ArtifactStagingDirectory)/upack"
+            rm -rf "$PUBLISH_DIR"
+            mkdir -p "$PUBLISH_DIR"
 
-              # Move/copy the zip (or your app folder) into publish dir
-              # Assuming your build published a ZIP named $(Build.SourceVersion).zip in the artifact
-              SRC_ZIP="$(Pipeline.Workspace)/build/Build-Drop/$(Build.SourceVersion).zip"
-              if [ ! -f "$SRC_ZIP" ]; then
-                echo "Could not find $SRC_ZIP. Listing for debugging:"
-                find "$(Pipeline.Workspace)/build" -maxdepth 3 -type f -print
-                exit 1
-              fi
+            # Move/copy the zip (or your app folder) into publish dir
+            # Assuming your build published a ZIP named $(Build.SourceVersion).zip in the artifact
+            SRC_ZIP="$(Pipeline.Workspace)/build/Build-Drop/$(Build.SourceVersion).zip"
+            if [ ! -f "$SRC_ZIP" ]; then
+              echo "Could not find $SRC_ZIP. Listing for debugging:"
+              find "$(Pipeline.Workspace)/build" -maxdepth 3 -type f -print
+              exit 1
+            fi
 
-              cp "$SRC_ZIP" "$PUBLISH_DIR/"
-              # Including a readme for traceability
-              echo "commit=$(Build.SourceVersion)" > "$PUBLISH_DIR/readme-ci-cd.txt"
-              echo "tag=$(calversion.new_tag)" >> "$PUBLISH_DIR/readme-ci-cd.txt"
-            displayName: 'Stage contents for Universal Package'
+            cp "$SRC_ZIP" "$PUBLISH_DIR/"
+            # Including a readme for traceability
+            echo "commit=$(Build.SourceVersion)" > "$PUBLISH_DIR/readme-ci-cd.txt"
+            echo "tag=$(calversion.new_tag)" >> "$PUBLISH_DIR/readme-ci-cd.txt"
+          displayName: 'Stage contents for Universal Package'
 
-        - ${{ if eq(parameters.isContainerized, false) }}:
-          task: UniversalPackages@0
+        - task: UniversalPackages@0
           displayName: 'Publish Pipeline Logs Universal Package'
           inputs:
             command: 'publish'
