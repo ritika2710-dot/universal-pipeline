@@ -7,6 +7,10 @@ parameters:
     type: string
     default: 'Deploy to Azure Web App'
 
+  - name: dependsOn
+    type: string
+    default: 'ReleaseStage'
+
   - name: jobName
     type: string
     default: 'DeployWebApp'
@@ -58,6 +62,7 @@ parameters:
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: ${{ parameters.stageDisplayName }}
+  dependsOn: ${{ parameters.dependsOn }}
 
   jobs:
   - deployment: ${{ parameters.jobName }}

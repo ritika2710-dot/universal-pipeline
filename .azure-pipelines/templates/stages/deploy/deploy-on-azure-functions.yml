@@ -53,11 +53,26 @@ parameters:
     type: string
     default: '$(Build.ArtifactStagingDirectory)/$(Build.SourceVersion).zip'
 
+  - name: dependsOn
+    type: string
+    default: 'ReleaseStage'
+
+  - name: universalFeedNameApp
+    type: string
+    default: ''
+
+  - name: universalPackageName
+    type: string
+    default: ''
+
+  - name: universalPackageVersion
+    type: string
+    default: ''
+
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: '${{ parameters.stageDisplayName }}'
-  #dependsOn: ${{ parameters.dependsOnStage }}
-  #condition: ${{ parameters.condition }}
+  dependsOn: ${{ parameters.dependsOn }}
   jobs:
   - deployment: ${{ parameters.jobName }}
     displayName: '${{ parameters.jobDisplayName }}'
