@@ -159,28 +159,38 @@ stages:
           echo "Artifacts in $(Build.ArtifactStagingDirectory):"
           ls -la "$(Build.ArtifactStagingDirectory)" || true
 
-    - task: Bash@3
-      displayName: 'Resolve Dockerfile Path'
+    # Docker v2
+    # Build or push Docker images, login or logout, start or stop containers, or run a Docker command.
+    - task: Docker@2
       inputs:
-        targetType: inline
-        script: |
-          set -e
-          DOCKERFILE_DIR="${{ parameters.dockerfilePath }}"
-          DOCKERFILE_NAME="${{ parameters.dockerfileName }}"
-          DOCKERFILE_FULL_PATH="$DOCKERFILE_DIR/$DOCKERFILE_NAME"
+        command: 'build' # 'buildAndPush' | 'build' | 'push' | 'login' | 'logout' | 'start' | 'stop'. Required. Command. Default: buildAndPush.
+        Dockerfile: ${{ parameters.dockerfilePath }}/${{ parameters.dockerfileName }}
+        buildContext: ${{ parameters.dockerBuildContext }} 
+        tags: '$(Build.BuildId)'
+        #arguments: # string. Optional. Use when command != login && command != logout && command != buildAndPush. Arguments. 
+
+    # - task: Bash@3
+    #   displayName: 'Resolve Dockerfile Path'
+    #   inputs:
+    #     targetType: inline
+    #     script: |
+    #       set -e
+    #       DOCKERFILE_DIR="${{ parameters.dockerfilePath }}"
+    #       DOCKERFILE_NAME="${{ parameters.dockerfileName }}"
+    #       DOCKERFILE_FULL_PATH="$DOCKERFILE_DIR/$DOCKERFILE_NAME"
           
-          echo "Looking for Dockerfile at: $DOCKERFILE_FULL_PATH"
+    #       echo "Looking for Dockerfile at: $DOCKERFILE_FULL_PATH"
             
-          if [ ! -f "$DOCKERFILE_FULL_PATH" ]; then
-            echo "ERROR: Dockerfile not found at $DOCKERFILE_FULL_PATH"
-            echo "Available files in $DOCKERFILE_DIR:"
-            ls -la "$DOCKERFILE_DIR" || echo "Directory does not exist"
-            exit 1
-          fi
+    #       if [ ! -f "$DOCKERFILE_FULL_PATH" ]; then
+    #         echo "ERROR: Dockerfile not found at $DOCKERFILE_FULL_PATH"
+    #         echo "Available files in $DOCKERFILE_DIR:"
+    #         ls -la "$DOCKERFILE_DIR" || echo "Directory does not exist"
+    #         exit 1
+    #       fi
             
-          echo "Found Dockerfile at: $DOCKERFILE_FULL_PATH"
-          echo "##vso[task.setvariable variable=RESOLVED_DOCKERFILE;isOutput=true]$DOCKERFILE_FULL_PATH"
-        name: ResolveDockerfile
+    #       echo "Found Dockerfile at: $DOCKERFILE_FULL_PATH"
+    #       echo "##vso[task.setvariable variable=RESOLVED_DOCKERFILE;isOutput=true]$DOCKERFILE_FULL_PATH"
+    #     name: ResolveDockerfile
 
     - task: Bash@3
       displayName: 'Docker Image Build'
@@ -193,14 +203,9 @@ stages:
         targetType: inline
         script: |
           set -e
-          IMAGE_TAG="build-image:${DOCKER_TAGS}-$(Build.BuildId)"
-          echo "Build context: $BUILD_CONTEXT"
-            
-          docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" "$BUILD_CONTEXT"
-            
           echo "Saving Docker image to artifact staging directory"
           mkdir -p "$(Build.ArtifactStagingDirectory)"
-          docker save -o "$(Build.ArtifactStagingDirectory)/image.tar" "$IMAGE_TAG"
+          docker save -o "$(Build.ArtifactStagingDirectory)/image.tar" "$(Build.BuildId)"
             
           echo "Docker image saved as: $(Build.ArtifactStagingDirectory)/image.tar"
 
