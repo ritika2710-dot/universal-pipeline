@@ -45,10 +45,6 @@ parameters:
     default: 
       - 'ReleaseStage'
 
-  - name: condition
-    type: string
-    default: 'succeededOrFailed()'
-
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: ${{ parameters.stageDisplayName }}
