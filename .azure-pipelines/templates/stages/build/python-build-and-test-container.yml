@@ -46,10 +46,6 @@ parameters:
       - '**/venv/**'
       - '**/node_modules/**'
 
-  - name: isContainerized
-    type: boolean
-    default: false
-
   - name: dockerfilePath
     type: string
     default: '.'

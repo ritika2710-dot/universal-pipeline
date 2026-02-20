@@ -48,17 +48,19 @@ parameters:
 
 #Containerized Application
 
-- name: Dockerfile
+- name: dockerfilePath
   type: string
-  default: '**/Dockerfile'
+  default: '.'
+  # Directory where Dockerfile is located (root or subfolder)
+
+- name: dockerfileName
+  type: string
+  default: 'Dockerfile'
+  # Name of the Dockerfile (e.g., Dockerfile, Dockerfile.prod, Dockerfile.dev)
 
 - name: dockerBuildContext
   type: string
   default: '.'
-
-- name: dockerRepository
-  type: string
-  default: ''
 
 - name: dockerTags
   type: string
@@ -220,8 +222,9 @@ stages:
     archiveFileName: ${{ parameters.archiveFileName }}
     artifactName: ${{ parameters.artifactName }}
     projectPath: ${{ parameters.projectPath }}
-    dockerBuildContext: ${{ parameters.dockerBuildContext }}
-    Dockerfile: ${{ parameters.Dockerfile }}
+    dockerfilePath: ${{ parameters.dockerfilePath }}   
+    dockerfileName: ${{ parameters.dockerfileName }}
+    dockerBuildContext: ${{ parameters.dockerBuildContext }} 
     dockerTags: ${{ parameters.dockerTags }}
 
 # ------------------------------------------------------------
