@@ -1,0 +1,417 @@
+# Full End-to-End Python Pipeline 
+# Path: .azure-pipelines/templates/full-pipelines/python-azure-app-service-end-to-end-container.yml
+parameters:
+
+# Branch Name Validation
+
+- name: stageName
+  type: string
+  default: 'EnforceBranchNamingStage'
+
+- name: displayName
+  type: string
+  default: 'Stage 1 - Enforce Branch Naming (PRs Only)'
+
+- name: jobName
+  type: string
+  default: 'EnforceBranchNaming'
+
+- name: jobDisplayName
+  type: string
+  default: 'Validate Branch Naming Convention'
+
+# Build Parameters
+
+- name: pythonVersion
+  type: string
+  default: '3.11'
+
+- name: requirementsFile
+  type: string
+  default: 'requirements.txt'
+
+- name: testResultsPath
+  type: string
+  default: 'junit/test-results.xml'
+
+- name: archiveFileName
+  type: string
+  default: '$(Build.ArtifactStagingDirectory)/$(Build.SourceVersion).zip'
+
+- name: artifactName
+  type: string
+  default: 'Build-Drop'
+
+- name: projectPath
+  type: string
+  default: '.'
+
+#Containerized Application
+
+- name: Dockerfile
+  type: string
+  default: '**/Dockerfile'
+
+- name: dockerBuildContext
+  type: string
+  default: '.'
+
+- name: dockerRepository
+  type: string
+  default: ''
+
+- name: dockerTags
+  type: string
+  default: 'latest'
+
+# SonarQube parameters
+- name: sonarReportArtifactName
+  type: string
+  default: 'SonarQube-Reports'
+
+- name: sonarQubeServiceConnection
+  type: string
+  default: ''
+
+- name: sonarQubeProjectKey
+  type: string
+  default: ''
+
+- name: sonarQubeUrl
+  type: string
+  default: ''
+
+- name: sonarQubeToken
+  type: string
+  default: ''
+  
+- name: branchFilter
+  type: string
+  default: 'refs/heads/main'
+
+# Wiz parameters
+- name: wizClientId
+  type: string
+  default: ''
+  
+- name: wizClientSecret
+  type: string
+  default: ''
+
+- name: wizServiceConnection
+  type: string
+  default: ''
+
+- name: wizScanPolicies
+  type: string
+  default: "Fail-on-Medium-Vulns, Default vulnerabilities policy"
+
+- name: wizFailOnSeverity
+  type: string
+  default: 'Medium'
+
+- name: wizPolicyHitsOnly
+  type: boolean
+  default: false
+    
+- name: wizSucceedOnFailures
+  type: boolean
+  default: false
+
+- name: wizContainerSucceedOnFailures
+  type: boolean
+  default: false
+  
+- name: wizContainerimage
+  type: string
+  default: ''
+  
+- name: wizContainerpolicyHitsOnly
+  type: boolean
+  default: true
+
+- name: wizContainerfileHashesScan
+  type: boolean
+  default: true
+
+- name: runWiz
+  type: boolean
+  default: true
+  
+ #Tag Release
+- name: releasedisplayName
+  type: string
+  default: 'Stage - Release Tag and Artifact'
+
+- name: releaseBranch
+  type: string
+  default: 'develop'
+
+- name: releaseType
+  type: string
+  default: 'patch'
+
+- name: universalFeedNameApp
+  type: string
+  default: ''
+
+- name: universalPackageName
+  type: string
+  default: 'App'
+   
+
+# Deployment (Azure Web App specific)
+- name: azureSubscriptionServiceConnection
+  type: string
+  default: ''
+
+- name: resourceGroupName
+  type: string
+  default: ''
+
+- name: appName
+  type: string
+  default: ''
+
+- name: appOs
+  type: string
+  default: 'linux'   # windows | linux
+
+# Log Collection
+- name: logUniversalFeedName
+  type: string
+  default: ''
+
+# Deployment Environment Configuration
+- name: environments
+  type: object
+  default:
+  - name: 'dev'
+    azureSubscription: ''
+    functionAppName: ''
+    resourceGroupName: ''
+
+
+stages:
+# ============================================================
+# STAGES
+# ============================================================
+
+# ------------------------------------------------------------
+# Stage 1: Branch Name Validation (PR only)
+# ------------------------------------------------------------
+- ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
+  - template: ../stages/validation/branch-name-validation.yml
+    parameters:
+      stageName: ${{ parameters.stageName }}
+      displayName: ${{ parameters.displayName }}
+      jobName: ${{ parameters.jobName }}
+      jobDisplayName: ${{ parameters.jobDisplayName }}
+
+# ------------------------------------------------------------
+# Stage 2: Build & Test
+# ------------------------------------------------------------
+
+- template: ../stages/build/python-build-and-test-container.yml
+  parameters:
+    pythonVersion: ${{ parameters.pythonVersion }}
+    requirementsFile: ${{ parameters.requirementsFile }}
+    testResultsPath: ${{ parameters.testResultsPath }}
+    archiveFileName: ${{ parameters.archiveFileName }}
+    artifactName: ${{ parameters.artifactName }}
+    projectPath: ${{ parameters.projectPath }}
+    dockerBuildContext: ${{ parameters.dockerBuildContext }}
+    Dockerfile: ${{ parameters.Dockerfile }}
+    dockerTags: ${{ parameters.dockerTags }}
+
+# ------------------------------------------------------------
+# Stage 3: Run Scan
+# ------------------------------------------------------------
+
+- template: ../stages/scan/python-quality-and-security-scan-container.yml
+  parameters:
+    pythonVersion: ${{ parameters.pythonVersion }}
+    sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
+    sonarQubeServiceConnection: ${{ parameters.sonarQubeServiceConnection }}
+    sonarQubeProjectKey: ${{ parameters.sonarQubeProjectKey }}
+    sonarQubeUrl: ${{ parameters.sonarQubeUrl }}
+    sonarQubeToken: ${{ parameters.sonarQubeToken }}
+    branchFilter: ${{ parameters.branchFilter }}
+    wizClientId: ${{ parameters.wizClientId }}
+    wizClientSecret: ${{ parameters.wizClientSecret }}
+    wizServiceConnection: ${{ parameters.wizServiceConnection }}
+    wizScanPolicies: ${{ parameters.wizScanPolicies }}
+    wizFailOnSeverity: ${{ parameters.wizFailOnSeverity }}
+    wizPolicyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+    wizSucceedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+    wizContainerSucceedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+    wizContainerimage: ${{ parameters.wizContainerimage }}
+    wizContainerpolicyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+    wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+    dockerBuildContext: ${{ parameters.dockerBuildContext }}
+    Dockerfile: ${{ parameters.Dockerfile }}
+    dockerTags: ${{ parameters.dockerTags }}
+    artifactName: ${{ parameters.artifactName }}
+    projectPath: ${{ parameters.projectPath }}
+    runWiz: ${{ parameters.runWiz }}
+
+# ------------------------------------------------------------
+# Stage 4: Release Tagging
+# ------------------------------------------------------------
+
+- ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+  - template: ../stages/release/release-tag-and-artifact-container.yml
+    parameters:
+      stageName: 'ReleaseStage'
+      displayName: ${{ parameters.releasedisplayName }}
+      releaseBranch: ${{ parameters.releaseBranch }} 
+      releaseType: ${{ parameters.releaseType }} 
+      universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+      universalPackageName: ${{ parameters.universalPackageName }}
+
+# ------------------------------------------------------------
+# Stage 5: Deploy to Azure Web App
+# ------------------------------------------------------------
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'dev') }}:
+      - template: ../stages/deploy/deploy-on-azure-webapp-container.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
+          dependsOn: 'ReleaseStage'
+          stageDependsOnRelease: false
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          resourceGroupName: ${{ env.resourceGroupName }}
+          appName: ${{ env.appName }}
+          appOs: ${{ env.appOs }}
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'qa') }}:
+      - template: ../stages/deploy/deploy-on-azure-webapp-container.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
+          dependsOn: 'Deploy_dev'
+          stageDependsOnRelease: true
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          resourceGroupName: ${{ env.resourceGroupName }}
+          appName: ${{ env.appName }}
+          appOs: ${{ env.appOs }}
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'uat') }}:
+      - template: ../stages/deploy/deploy-on-azure-webapp-container.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
+          dependsOn: 'Deploy_qa'
+          stageDependsOnRelease: true
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          resourceGroupName: ${{ env.resourceGroupName }}
+          appName: ${{ env.appName }}
+          appOs: ${{ env.appOs }}
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'prod') }}:
+      - template: ../stages/deploy/deploy-on-azure-webapp-container.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
+          dependsOn: 'ReleaseStage'
+          stageDependsOnRelease: false
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          resourceGroupName: ${{ env.resourceGroupName }}
+          appName: ${{ env.appName }}
+          appOs: ${{ env.appOs }}
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+# ------------------------------------------------------------
+# Stage 6: Log Collection
+# ------------------------------------------------------------
+
+# Non-main branches: log collection after last deployment stage (dev, qa, or uat)
+# Determine the last deployment stage from environments array
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - ${{ if containsValue(parameters.environments, 'uat') }}:
+    - template: ../stages/logs/collect-logs.yml
+      parameters:
+        stageName: 'CollectLogsStage'
+        stageDisplayName: 'Collect & Publish Pipeline Logs'
+        dependsOn:
+          - 'ReleaseStage'
+          - 'Deploy_uat'
+        condition: 'succeededOrFailed()'
+        jobName: 'CollectLogsJob'
+        jobDisplayName: 'Collect Pipeline Logs'
+        logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+        logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
+        packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
+  - ${{ if and(not(containsValue(parameters.environments, 'uat')), containsValue(parameters.environments, 'qa')) }}:
+    - template: ../stages/logs/collect-logs.yml
+      parameters:
+        stageName: 'CollectLogsStage'
+        stageDisplayName: 'Collect & Publish Pipeline Logs'
+        dependsOn:
+          - 'ReleaseStage'
+          - 'Deploy_qa'
+        condition: 'succeededOrFailed()'
+        jobName: 'CollectLogsJob'
+        jobDisplayName: 'Collect Pipeline Logs'
+        logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+        logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
+        packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
+  - ${{ if and(not(containsValue(parameters.environments, 'uat')), not(containsValue(parameters.environments, 'qa')), containsValue(parameters.environments, 'dev')) }}:
+    - template: ../stages/logs/collect-logs.yml
+      parameters:
+        stageName: 'CollectLogsStage'
+        stageDisplayName: 'Collect & Publish Pipeline Logs'
+        dependsOn:
+          - 'ReleaseStage'
+          - 'Deploy_dev'
+        condition: 'succeededOrFailed()'
+        jobName: 'CollectLogsJob'
+        jobDisplayName: 'Collect Pipeline Logs'
+        logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+        logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
+        packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
+
+# Main branch: log collection after Prod
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - template: ../stages/logs/collect-logs.yml
+    parameters:
+      stageName: 'CollectLogsStage'
+      stageDisplayName: 'Collect & Publish Pipeline Logs'
+      dependsOn:
+        - 'ReleaseStage'
+        - 'Deploy_prod'
+      condition: 'succeededOrFailed()'
+      jobName: 'CollectLogsJob'
+      jobDisplayName: 'Collect Pipeline Logs'
+      logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+      logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
+      packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
