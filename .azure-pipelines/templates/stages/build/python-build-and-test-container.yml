@@ -185,16 +185,15 @@ stages:
     - task: Bash@3
       displayName: 'Docker Image Build'
       condition: succeeded()
+      env:
+        DOCKERFILE_PATH: $(ResolveDockerfile.RESOLVED_DOCKERFILE)
+        BUILD_CONTEXT: ${{ parameters.dockerBuildContext }}
+        DOCKER_TAGS: ${{ parameters.dockerTags }}
       inputs:
         targetType: inline
         script: |
           set -e
-          IMAGE_TAG="build-image:${{ parameters.dockerTags }}-$(Build.BuildId)"
-          DOCKERFILE_PATH="$(ResolveDockerfile.RESOLVED_DOCKERFILE)"
-          BUILD_CONTEXT="${{ parameters.dockerBuildContext }}"
-            
-          echo "Building Docker image: $IMAGE_TAG"
-          echo "Dockerfile: $DOCKERFILE_PATH"
+          IMAGE_TAG="build-image:${DOCKER_TAGS}-$(Build.BuildId)"
           echo "Build context: $BUILD_CONTEXT"
             
           docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" "$BUILD_CONTEXT"
