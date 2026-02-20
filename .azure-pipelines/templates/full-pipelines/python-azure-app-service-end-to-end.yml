@@ -361,22 +361,50 @@ stages:
 # ------------------------------------------------------------
 
 # Non-main branches: log collection after last deployment stage (dev, qa, or uat)
+# Determine the last deployment stage from environments array
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
-  - template: ../stages/logs/collect-logs.yml
-    parameters:
-      stageName: 'CollectLogsStage'
-      stageDisplayName: 'Collect & Publish Pipeline Logs'
-      dependsOn:
-        - 'ReleaseStage'
-        - 'Deploy_dev'
-        - 'Deploy_qa'
-        - 'Deploy_uat'
-      condition: 'succeededOrFailed()'
-      jobName: 'CollectLogsJob'
-      jobDisplayName: 'Collect Pipeline Logs'
-      logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
-      logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
-      packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
+  - ${{ if containsValue(parameters.environments, 'uat') }}:
+    - template: ../stages/logs/collect-logs.yml
+      parameters:
+        stageName: 'CollectLogsStage'
+        stageDisplayName: 'Collect & Publish Pipeline Logs'
+        dependsOn:
+          - 'ReleaseStage'
+          - 'Deploy_uat'
+        condition: 'succeededOrFailed()'
+        jobName: 'CollectLogsJob'
+        jobDisplayName: 'Collect Pipeline Logs'
+        logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+        logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
+        packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
+  - ${{ if and(not(containsValue(parameters.environments, 'uat')), containsValue(parameters.environments, 'qa')) }}:
+    - template: ../stages/logs/collect-logs.yml
+      parameters:
+        stageName: 'CollectLogsStage'
+        stageDisplayName: 'Collect & Publish Pipeline Logs'
+        dependsOn:
+          - 'ReleaseStage'
+          - 'Deploy_qa'
+        condition: 'succeededOrFailed()'
+        jobName: 'CollectLogsJob'
+        jobDisplayName: 'Collect Pipeline Logs'
+        logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+        logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
+        packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
+  - ${{ if and(not(containsValue(parameters.environments, 'uat')), not(containsValue(parameters.environments, 'qa')), containsValue(parameters.environments, 'dev')) }}:
+    - template: ../stages/logs/collect-logs.yml
+      parameters:
+        stageName: 'CollectLogsStage'
+        stageDisplayName: 'Collect & Publish Pipeline Logs'
+        dependsOn:
+          - 'ReleaseStage'
+          - 'Deploy_dev'
+        condition: 'succeededOrFailed()'
+        jobName: 'CollectLogsJob'
+        jobDisplayName: 'Collect Pipeline Logs'
+        logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+        logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
+        packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
 
 # Main branch: log collection after Prod
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
