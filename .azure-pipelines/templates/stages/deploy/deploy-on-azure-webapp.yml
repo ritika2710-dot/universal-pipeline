@@ -59,10 +59,19 @@ parameters:
     type: string
     default: ''
 
+  - name: stageDependsOnRelease
+    type: boolean
+    default: false
+
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: ${{ parameters.stageDisplayName }}
-  dependsOn: ${{ parameters.dependsOn }}
+  ${{ if eq(parameters.stageDependsOnRelease, true) }}:
+    dependsOn:
+      - ReleaseStage
+      - ${{ parameters.dependsOn }}
+  ${{ if eq(parameters.stageDependsOnRelease, false) }}:
+    dependsOn: ${{ parameters.dependsOn }}
 
   jobs:
   - deployment: ${{ parameters.jobName }}

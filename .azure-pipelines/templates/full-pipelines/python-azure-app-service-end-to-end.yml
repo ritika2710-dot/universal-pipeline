@@ -281,12 +281,13 @@ stages:
 
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
-    - ${{ if ne(env.name, 'prod') }}:
+    - ${{ if eq(env.name, 'dev') }}:
       - template: ../stages/deploy/deploy-on-azure-webapp.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
           stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
           dependsOn: 'ReleaseStage'
+          stageDependsOnRelease: false
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
@@ -297,6 +298,45 @@ stages:
           universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
           universalPackageName: ${{ parameters.universalPackageName }}
 
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'qa') }}:
+      - template: ../stages/deploy/deploy-on-azure-webapp.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
+          dependsOn: 'Deploy_dev'
+          stageDependsOnRelease: true
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          resourceGroupName: ${{ env.resourceGroupName }}
+          appName: ${{ env.appName }}
+          appOs: ${{ env.appOs }}
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'uat') }}:
+      - template: ../stages/deploy/deploy-on-azure-webapp.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
+          dependsOn: 'Deploy_qa'
+          stageDependsOnRelease: true
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          resourceGroupName: ${{ env.resourceGroupName }}
+          appName: ${{ env.appName }}
+          appOs: ${{ env.appOs }}
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
     - ${{ if eq(env.name, 'prod') }}:
@@ -305,6 +345,7 @@ stages:
           stageName: 'Deploy_${{ env.name }}'
           stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
           dependsOn: 'ReleaseStage'
+          stageDependsOnRelease: false
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
@@ -319,9 +360,32 @@ stages:
 # Stage 6: Log Collection
 # ------------------------------------------------------------
 
-- ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+# Non-main branches: log collection after UAT
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - template: ../stages/logs/collect-logs.yml
     parameters:
+      stageName: 'CollectLogsStage'
+      stageDisplayName: 'Collect & Publish Pipeline Logs'
+      dependsOn: 'Deploy_uat'
+      stageDependsOnRelease: true
+      condition: 'succeededOrFailed()'
+      jobName: 'CollectLogsJob'
+      jobDisplayName: 'Collect Pipeline Logs'
+      logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+      logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
+      packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
+
+# Main branch: log collection after Prod
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
+  - template: ../stages/logs/collect-logs.yml
+    parameters:
+      stageName: 'CollectLogsStage'
+      stageDisplayName: 'Collect & Publish Pipeline Logs'
+      dependsOn: 'Deploy_prod'
+      stageDependsOnRelease: false
+      condition: 'succeededOrFailed()'
+      jobName: 'CollectLogsJob'
+      jobDisplayName: 'Collect Pipeline Logs'
       logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
       logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
       packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'

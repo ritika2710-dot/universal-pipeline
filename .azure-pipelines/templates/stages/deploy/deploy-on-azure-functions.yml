@@ -69,89 +69,81 @@ parameters:
     type: string
     default: ''
 
+  - name: stageDependsOnRelease
+    type: boolean
+    default: false
+
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: '${{ parameters.stageDisplayName }}'
-  dependsOn: ${{ parameters.dependsOn }}
+  ${{ if eq(parameters.stageDependsOnRelease, true) }}:
+    dependsOn:
+      - ReleaseStage
+      - ${{ parameters.dependsOn }}
+  ${{ if eq(parameters.stageDependsOnRelease, false) }}:
+    dependsOn: ${{ parameters.dependsOn }}
   jobs:
   - deployment: ${{ parameters.jobName }}
     displayName: '${{ parameters.jobDisplayName }}'
     environment: '${{ parameters.environment }}'
+    variables:
+      universalPackageVersion: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
     strategy:
       runOnce:
         deploy:
           steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Pipeline Artifact'
+            inputs:
+              buildType: 'current'
+              artifactName: ${{ parameters.artifactName }}
+              targetPath: '$(Pipeline.Workspace)/build'
+
           - task: Bash@3
-            displayName: Install Application Dependencies
+            displayName: 'Resolve Package Version'
             inputs:
               targetType: inline
               script: |
-                echo ${{ parameters.stageName }}
-                echo ${{ parameters.stageDisplayName }}
-                echo ${{ parameters.environment }}
-                echo ${{ parameters.azureSubscription }}
-                echo ${{ parameters.resourceGroupName }}
-                echo ${{ parameters.appName }}
-                echo ${{ parameters.packagePath }}
+                # Get resolved version from job variable (from ReleaseStage outputs)
+                VERSION='$(universalPackageVersion)'
+                
+                # Override with parameter if provided
+                if [ ! -z "${{ parameters.universalPackageVersion }}" ]; then
+                  VERSION='${{ parameters.universalPackageVersion }}'
+                fi
+                
+                echo "##vso[task.setvariable name=resolvedPackageVersion]$VERSION"
+                echo "Package Version: $VERSION"
 
+          - task: DownloadPackage@1
+            displayName: 'Download Universal Package'
+            condition: and(ne('${{ parameters.universalFeedNameApp }}', ''), ne('${{ parameters.universalPackageName }}', ''))
+            inputs:
+              packageType: 'upack'
+              feed: ${{ parameters.universalFeedNameApp }}
+              definition: ${{ parameters.universalPackageName }}
+              version: $(resolvedPackageVersion)
+              downloadPath: '$(Pipeline.Workspace)/package'
 
+          - task: Bash@3
+            displayName: 'Resolve Downloaded Package Path'
+            condition: and(ne('${{ parameters.universalFeedNameApp }}', ''), ne('${{ parameters.universalPackageName }}', ''))
+            inputs:
+              targetType: inline
+              script: |
+                # Find ZIP file in downloaded package and resolve path for deployment
+                PACKAGE_PATH=$(find $(Pipeline.Workspace)/package -name "*.zip" -type f | head -1)
+                if [ -z "$PACKAGE_PATH" ]; then
+                  echo "No package ZIP found in $(Pipeline.Workspace)/package"
+                  PACKAGE_PATH="${{ parameters.packagePath }}"
+                fi
+                echo "##vso[task.setvariable name=downloadedPackagePath]$PACKAGE_PATH"
+                echo "Resolved package path: $PACKAGE_PATH"
 
-          # - download: current
-          #   artifact: ${{ parameters.artifactName }}
-          #   displayName: 'Download artifact'
-
-          # # - task: ExtractFiles@1
-          # #   displayName: 'Extract artifact'
-          # #   inputs:
-          # #     archiveFilePatterns: '${{ parameters.packagePath }}'
-          # #     destinationFolder: '$(Pipeline.Workspace)/extracted'
-          # #     cleanDestinationFolder: true
-
-          # - task: DownloadBuildArtifacts@0
-          #   inputs:
-          #     buildType: 'current'
-          #     downloadType: 'single'
-          #     artifactName: ${{ parameters.artifactName }}
-          #     downloadPath: '$(Build.ArtifactStagingDirectory)'
-
-          # - task: AzureFunctionApp@1
-          #   displayName: 'Deploy Azure Function App'
-          #   inputs:
-          #     azureSubscription: ${{ parameters.azureSubscription }}
-          #     appType: ${{ parameters.appType }}
-          #     appName: ${{ parameters.appName }}
-          #     package: ${{ parameters.packagePath }}
-
-
-
-
-
-
-    steps:
-    - task: DownloadBuildArtifacts@0
-      inputs:
-        buildType: 'current'
-        downloadType: 'single'
-        artifactName: ${{ parameters.artifactName }}
-        downloadPath: '$(Build.ArtifactStagingDirectory)'
-    # Download package v1
-
-    - task: DownloadPackage@1
-      inputs:
-        packageType: 'upack' # 'maven' | 'npm' | 'nuget' | 'pypi' | 'upack' | 'cargo'. Required. Package Type. Default: nuget.
-        feed: ${{ parameters.artifactName }} # string. Required. Feed. 
-        #view: # string. View. 
-        definition: # string. Required. Package. 
-        version: ${{ parameters.versionNumber }} # string. Required. Version. 
-        downloadPath: '$(Build.ArtifactStagingDirectory)' # string. Required. Destination directory. Default: $(System.ArtifactsDirectory).
-      # Advanced
-        #files: '**' # string. Optional. Use when packageType = maven || packageType = pypi || packageType = upack. Files. Default: **.
-        #extract: true # boolean. Optional. Use when packageType = nuget || packageType = npm. Extract package contents. Default: true.
-
-    - task: AzureFunctionApp@1
-      displayName: 'Deploy Azure Function App'
-      inputs:
-        azureSubscription: ${{ parameters.azureSubscription }}
-        appType: ${{ parameters.appType }}
-        appName: ${{ parameters.appName }}
-        package: ${{ parameters.packagePath }}
+          - task: AzureFunctionApp@1
+            displayName: 'Deploy Azure Function App'
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              appType: ${{ parameters.appType }}
+              appName: ${{ parameters.appName }}
+              package: $(downloadedPackagePath)
