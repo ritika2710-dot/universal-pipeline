@@ -41,22 +41,18 @@ parameters:
     default: 'Pipeline logs for build'
 
   - name: dependsOn
-    type: string
-    default: 'ReleaseStage'
+    type: object
+    default: 
+      - 'ReleaseStage'
 
-  - name: stageDependsOnRelease
-    type: boolean
-    default: false
+  - name: condition
+    type: string
+    default: 'succeededOrFailed()'
 
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: ${{ parameters.stageDisplayName }}
-  ${{ if eq(parameters.stageDependsOnRelease, true) }}:
-    dependsOn:
-      - ReleaseStage
-      - ${{ parameters.dependsOn }}
-  ${{ if eq(parameters.stageDependsOnRelease, false) }}:
-    dependsOn: ${{ parameters.dependsOn }}
+  dependsOn: ${{ parameters.dependsOn }}
   condition: ${{ parameters.condition }}
   jobs:
     - job: ${{ parameters.jobName }}

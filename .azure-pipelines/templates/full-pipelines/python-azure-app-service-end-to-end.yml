@@ -360,14 +360,17 @@ stages:
 # Stage 6: Log Collection
 # ------------------------------------------------------------
 
-# Non-main branches: log collection after UAT
+# Non-main branches: log collection after last deployment stage (dev, qa, or uat)
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - template: ../stages/logs/collect-logs.yml
     parameters:
       stageName: 'CollectLogsStage'
       stageDisplayName: 'Collect & Publish Pipeline Logs'
-      dependsOn: 'Deploy_uat'
-      stageDependsOnRelease: true
+      dependsOn:
+        - 'ReleaseStage'
+        - 'Deploy_dev'
+        - 'Deploy_qa'
+        - 'Deploy_uat'
       condition: 'succeededOrFailed()'
       jobName: 'CollectLogsJob'
       jobDisplayName: 'Collect Pipeline Logs'
@@ -381,8 +384,9 @@ stages:
     parameters:
       stageName: 'CollectLogsStage'
       stageDisplayName: 'Collect & Publish Pipeline Logs'
-      dependsOn: 'Deploy_prod'
-      stageDependsOnRelease: false
+      dependsOn:
+        - 'ReleaseStage'
+        - 'Deploy_prod'
       condition: 'succeededOrFailed()'
       jobName: 'CollectLogsJob'
       jobDisplayName: 'Collect Pipeline Logs'
