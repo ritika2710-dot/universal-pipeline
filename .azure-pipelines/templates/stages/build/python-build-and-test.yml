@@ -79,24 +79,15 @@ stages:
         versionSpec: ${{ parameters.pythonVersion }}
 
     - task: Bash@3
-      displayName: Install dependencies into site_packages
+      displayName: Install dependencies into .python_packages/lib/site-packages
       inputs:
         targetType: inline
         script: |
           set -e
           PROJECT_PATH="${{ parameters.projectPath }}"
-          REQUIREMENTS_FILE="$PROJECT_PATH/${{ parameters.requirementsFile }}"
-          SITE_PACKAGES_DIR="$PROJECT_PATH/site_packages"
-          rm -rf "$SITE_PACKAGES_DIR"
-          mkdir -p "$SITE_PACKAGES_DIR"
           python -m pip install --upgrade pip
-          echo "Installing dependencies from: $REQUIREMENTS_FILE into $SITE_PACKAGES_DIR"
-          if [ -f "$REQUIREMENTS_FILE" ]; then
-            python -m pip install -r "$REQUIREMENTS_FILE" -t "$SITE_PACKAGES_DIR"
-          else
-            echo "ERROR: Requirements file not found at $REQUIREMENTS_FILE"
-            exit 1
-          fi
+          echo "Installing dependencies from: $PROJECT_PATH/${{ parameters.requirementsFile }}"
+          pip${{ parameters.pythonVersion }} install --target $PROJECT_PATH/.python_packages/lib/site-packages -r $PROJECT_PATH/${{ parameters.requirementsFile }}
 
     - bash: |
         # expose filenames for Publish tasks (basename evaluated by shell)
@@ -113,15 +104,14 @@ stages:
         script: |
           set -e
           PROJECT_PATH="${{ parameters.projectPath }}"
-          SITE_PACKAGES_DIR="$PROJECT_PATH/site_packages"
           mkdir -p "$(Build.ArtifactStagingDirectory)"
           if [ ! -d "$PROJECT_PATH/venv" ]; then
             python3 -m venv "$PROJECT_PATH/venv"
           fi
           source "$PROJECT_PATH/venv/bin/activate"
           pip install pytest pytest-cov
-          echo "Running pytest from $PROJECT_PATH with PYTHONPATH=$SITE_PACKAGES_DIR"
-          PYTHONPATH="$SITE_PACKAGES_DIR:$PYTHONPATH" pytest -q --junitxml="$(Build.ArtifactStagingDirectory)/$(testResultsFileName)" \
+          echo "Running pytest from $PROJECT_PATH with PYTHONPATH=$PROJECT_PATH/.python_packages/lib/site-packages"
+          PYTHONPATH="$PROJECT_PATH/.python_packages/lib/site-packages:$PYTHONPATH" pytest -q --junitxml="$(Build.ArtifactStagingDirectory)/$(testResultsFileName)" \
             --cov="$PROJECT_PATH" --cov-report=xml:"$(Build.ArtifactStagingDirectory)/$(coverageFileName)" || exit_code=$?
           if [ "${exit_code:-0}" -eq 5 ]; then
             echo "No tests collected"
@@ -157,22 +147,20 @@ stages:
           ls -la "$(Build.ArtifactStagingDirectory)" || true
 
     - task: Bash@3
-      displayName: 'Copy app files into site_packages folder'
+      displayName: 'Copy app files into .python_packages/lib/site-packages'
       inputs:
         targetType: inline
         script: |
           set -e
           PROJECT_PATH="${{ parameters.projectPath }}"
-          SITE_PACKAGES_DIR="$PROJECT_PATH/site_packages"
-          echo "Copying app files from $PROJECT_PATH into $SITE_PACKAGES_DIR"
-          # Copy all app files except unwanted directories
-          rsync -av --exclude='site_packages' --exclude='.venv' --exclude='venv' --exclude='.git' --exclude='__pycache__' --exclude='.pytest_cache' "$PROJECT_PATH/" "$SITE_PACKAGES_DIR/"
-          echo "App files copied to $SITE_PACKAGES_DIR"
+          echo "Copying app files into $PROJECT_PATH/.python_packages/lib/site-packages"
+          rsync -av --exclude='.python_packages' --exclude='.venv' --exclude='venv' --exclude='.git' --exclude='__pycache__' --exclude='.pytest_cache' "$PROJECT_PATH/" "$PROJECT_PATH/.python_packages/lib/site-packages/"
+          echo "App files copied"
 
     - task: ArchiveFiles@2
-      displayName: 'Archive site_packages (with app files) for Deployment'
+      displayName: 'Archive project with .python_packages for Deployment'
       inputs:
-        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/${{ parameters.projectPath }}/site_packages'
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/${{ parameters.projectPath }}'
         includeRootFolder: false
         archiveType: 'zip'
         archiveFile: '${{ parameters.archiveFileName }}'
