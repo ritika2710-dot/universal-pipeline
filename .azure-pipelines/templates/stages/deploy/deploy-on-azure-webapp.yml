@@ -64,6 +64,10 @@ stages:
     displayName: ${{ parameters.jobDisplayName }}
     environment: ${{ parameters.environment }}
 
+    variables:
+      - name: universalPackageVersion
+        value: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
+
     strategy:
       runOnce:
         deploy:
@@ -74,6 +78,16 @@ stages:
               echo "##vso[task.setvariable variable=downloadedPackagePath]${{ parameters.packagePath }}"
             displayName: 'Set default package path'
 
+          # Allow template param to override, otherwise use runtime ReleaseStage output
+          - bash: |
+              if [ -n '${{ parameters.universalPackageVersion }}' ]; then
+                echo "Overriding universalPackageVersion with template parameter: ${{ parameters.universalPackageVersion }}"
+                echo "##vso[task.setvariable variable=universalPackageVersion]${{ parameters.universalPackageVersion }}"
+              else
+                echo "Using runtime ReleaseStage output for universalPackageVersion: $(universalPackageVersion)"
+              fi
+            displayName: 'Determine Universal Package Version'
+
           # Optionally download from Universal Packages feed when parameters provided
           - task: DownloadPackage@1
             displayName: 'Download Universal Package from feed'
@@ -81,7 +95,7 @@ stages:
               packageType: 'upack'
               feed: '${{ parameters.universalFeedNameApp }}'
               definition: '${{ parameters.universalPackageName }}'
-              version: '${{ parameters.universalPackageVersion }}'
+              version: '$(universalPackageVersion)'
               downloadPath: '$(Pipeline.Workspace)/upack'
 
           - bash: |
