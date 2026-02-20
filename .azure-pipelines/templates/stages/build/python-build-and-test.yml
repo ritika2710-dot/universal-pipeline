@@ -146,16 +146,16 @@ stages:
           echo "Artifacts in $(Build.ArtifactStagingDirectory):"
           ls -la "$(Build.ArtifactStagingDirectory)" || true
 
-    - task: Bash@3
-      displayName: 'Copy app files into .python_packages/lib/site-packages'
-      inputs:
-        targetType: inline
-        script: |
-          set -e
-          PROJECT_PATH="${{ parameters.projectPath }}"
-          echo "Copying app files into $PROJECT_PATH/.python_packages/lib/site-packages"
-          rsync -av --exclude='.python_packages' --exclude='.venv' --exclude='venv' --exclude='.git' --exclude='__pycache__' --exclude='.pytest_cache' "$PROJECT_PATH/" "$PROJECT_PATH/.python_packages/lib/site-packages/"
-          echo "App files copied"
+    # - task: Bash@3
+    #   displayName: 'Copy app files into .python_packages/lib/site-packages'
+    #   inputs:
+    #     targetType: inline
+    #     script: |
+    #       set -e
+    #       PROJECT_PATH="${{ parameters.projectPath }}"
+    #       echo "Copying app files into $PROJECT_PATH/.python_packages/lib/site-packages"
+    #       rsync -av --exclude='.python_packages' --exclude='.venv' --exclude='venv' --exclude='.git' --exclude='__pycache__' --exclude='.pytest_cache' "$PROJECT_PATH/" "$PROJECT_PATH/.python_packages/lib/site-packages/"
+    #       echo "App files copied"
 
     - task: ArchiveFiles@2
       displayName: 'Archive project with .python_packages for Deployment'
