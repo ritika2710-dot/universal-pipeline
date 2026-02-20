@@ -251,9 +251,6 @@ stages:
     wizContainerimage: ${{ parameters.wizContainerimage }}
     wizContainerpolicyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
     wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
-    dockerBuildContext: ${{ parameters.dockerBuildContext }}
-    Dockerfile: ${{ parameters.Dockerfile }}
-    dockerTags: ${{ parameters.dockerTags }}
     artifactName: ${{ parameters.artifactName }}
     projectPath: ${{ parameters.projectPath }}
     runWiz: ${{ parameters.runWiz }}

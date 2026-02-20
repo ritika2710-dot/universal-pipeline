@@ -102,21 +102,6 @@ parameters:
     default: '.'
     #'Path to the project root (same as build stage)'
 
-  - name: Dockerfile
-    type: string
-    default: './Dockerfile'
-
-  - name: dockerBuildContext
-    type: string
-    default: '.'
-
-  - name: dockerRepository
-    type: string
-    default: ''
-
-  - name: dockerTags
-    type: string
-    default: 'latest'
 
 
 
