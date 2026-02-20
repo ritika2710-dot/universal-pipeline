@@ -459,7 +459,7 @@ stages:
               fi
 
         #Step 20: Wiz Container Scan (conditionally included)
-        - ${{ if and(eq(parameters.runWiz, true) }}:
+        - ${{ if eq(parameters.runWiz, true) }}:
           - ${{ if ne(variables['containerToScan'], '') }}:
             - task: wiz@0
               displayName: Run Wiz Container Image Scan
