@@ -44,9 +44,6 @@ parameters:
     type: string
     default: 'ado-build-service-bot@unilever.com'
 
-  - name: isContainerized
-    type: boolean
-    default: false
 
   # ACR / container settings (used when artifactType = 'container')
   - name: acrServiceConnection
@@ -57,13 +54,19 @@ parameters:
     type: string
     default: '' # e.g. myregistry.azurecr.io/myapp
 
-  - name: acrDockerfilePath
+  - name: dockerfilePath
     type: string
-    default: '$(Pipeline.Workspace)/build/Build-Drop/Dockerfile'
+    default: '.'
+    # Directory where Dockerfile is located (root or subfolder)
 
-  - name: acrContextPath
+  - name: dockerfileName
     type: string
-    default: '$(Pipeline.Workspace)/build/Build-Drop'
+    default: 'Dockerfile'
+    # Name of the Dockerfile (e.g., Dockerfile, Dockerfile.prod, Dockerfile.dev)
+
+  - name: dockerBuildContext
+    type: string
+    default: '.'
 
 stages:
 - stage: ${{ parameters.stageName }}
@@ -197,14 +200,14 @@ stages:
             artifact: 'Build-Drop'
             path: '$(Pipeline.Workspace)/build'
 
-
         - task: Docker@2
           displayName: 'Build and Push Docker image to ACR'
           inputs:
             command: 'buildAndPush'
             containerRegistry: '${{ parameters.acrServiceConnection }}'
             repository: '${{ parameters.acrRepository }}'
-            dockerfile: '${{ parameters.acrDockerfilePath }}'
-            buildContext: '${{ parameters.acrContextPath }}'
+            Dockerfile: ${{ parameters.dockerfilePath }}/${{ parameters.dockerfileName }}
+            buildContext: ${{ parameters.dockerBuildContext }} 
             tags: |
               $(calversion.new_version)
+              latest
