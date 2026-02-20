@@ -295,7 +295,6 @@ stages:
           appOs: ${{ env.appOs }}
           universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
           universalPackageName: ${{ parameters.universalPackageName }}
-          universalPackageVersion: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
 
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
@@ -313,7 +312,6 @@ stages:
           appOs: ${{ env.appOs }}
           universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
           universalPackageName: ${{ parameters.universalPackageName }}
-          universalPackageVersion: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
 
 # ------------------------------------------------------------
 # Stage 6: Log Collection
