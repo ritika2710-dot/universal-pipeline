@@ -442,21 +442,21 @@ stages:
                 echo "No image to scan (no image.tar and wizContainerimage not provided). Skipping container scan."
                 echo "##vso[task.setvariable variable=containerToScan]"
               fi
+              docker image ls
 
         #Step 20: Wiz Container Scan (conditionally included)
         - ${{ if eq(parameters.runWiz, true) }}:
-          - ${{ if ne(variables['containerToScan'], '') }}:
-            - task: wiz@0
-              displayName: Run Wiz Container Image Scan
-              inputs:
-                command: 'image'
-                succeedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
-                image: '$(containerToScan)'
-                policyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
-                fileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
-                useServiceConnection: true
-                serviceConnectionId: ${{ parameters.wizServiceConnection }}
-                sudo: true
+          - task: wiz@0
+            displayName: Run Wiz Container Image Scan
+            inputs:
+              command: 'image'
+              succeedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+              image: '$(containerToScan)'
+              policyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+              fileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+              useServiceConnection: true
+              serviceConnectionId: ${{ parameters.wizServiceConnection }}
+              sudo: true
         
         - ${{ if or(eq(parameters.runWiz, false), eq(variables['containerToScan'], '')) }}:
           - script: |
