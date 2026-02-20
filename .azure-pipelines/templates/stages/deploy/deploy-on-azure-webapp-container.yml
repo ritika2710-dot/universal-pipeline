@@ -7,6 +7,14 @@ parameters:
     type: string
     default: 'Deploy to Azure Web App'
 
+  - name: dependsOn
+    type: string
+    default: 'ReleaseStage'
+
+  - name: stageDependsOnRelease
+    type: boolean
+    default: false
+
   - name: jobName
     type: string
     default: 'DeployWebApp'
@@ -39,114 +47,113 @@ parameters:
     type: string
     default: 'Build-Drop'
 
-  - name: packagePath
+  # Container deployment parameters
+  - name: deploymentMethod
     type: string
-    default: '$(Pipeline.Workspace)/Build-Drop/$(Build.SourceVersion).zip'
+    default: 'single-container'  # Options: 'sidecar', 'single-container', 'multi-container'
 
-  - name: universalFeedNameApp
-    type: string
-    default: ''
-
-  - name: universalPackageName
+  - name: serviceConnectionAppService
     type: string
     default: ''
 
-  - name: universalPackageVersion
+  - name: containerRegistry
+    type: string
+    default: ''
+
+  - name: imageName
+    type: string
+    default: ''
+
+  - name: imageTag
+    type: string
+    default: 'latest'
+
+  - name: containerName
+    type: string
+    default: 'main'
+
+  - name: targetPort
+    type: number
+    default: 5000
+
+  - name: isSidecarMain
+    type: boolean
+    default: true
+
+  - name: dockerComposeFile
     type: string
     default: ''
 
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: ${{ parameters.stageDisplayName }}
+  ${{ if eq(parameters.stageDependsOnRelease, true) }}:
+    dependsOn:
+      - ReleaseStage
+      - ${{ parameters.dependsOn }}
+  ${{ if eq(parameters.stageDependsOnRelease, false) }}:
+    dependsOn: ${{ parameters.dependsOn }}
 
   jobs:
   - deployment: ${{ parameters.jobName }}
     displayName: ${{ parameters.jobDisplayName }}
     environment: ${{ parameters.environment }}
+    variables:
+      imageTag: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
 
     strategy:
       runOnce:
         deploy:
           steps:
 
+          # ============================
+          # SIDECAR DEPLOYMENT
+          # ============================
+          - ${{ if eq(parameters.deploymentMethod, 'sidecar') }}:
+            - task: AzureCLI@2
+              displayName: 'Deploy Sidecar Container to App Service'
+              condition: and(succeeded(), ne('${{ parameters.serviceConnectionAppService }}', ''), ne('${{ parameters.containerRegistry }}', ''), ne('${{ parameters.imageName }}', ''))
+              inputs:
+                azureSubscription: ${{ parameters.serviceConnectionAppService }}
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az webapp sitecontainers update \
+                    --name ${{ parameters.appName }} \
+                    --resource-group ${{ parameters.resourceGroupName }} \
+                    --container-name ${{ parameters.containerName }} \
+                    --image ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:${{ parameters.imageTag }} \
+                    --target-port ${{ parameters.targetPort }} \
+                    --is-main ${{ parameters.isSidecarMain }}
 
-          - task: AzureCLI@2
-            displayName: 'Deploy sidecar containers to App Service'
-            inputs:
-              azureSubscription: $(serviceConnectionAppService)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                az webapp sitecontainers update \
-                  --name $(appName) \
-                  --resource-group $(resourceGroup) \
-                  --container-name main \
-                  --image $(containerRegistry)/$(imageName):$(image_tag) \
-                  --target-port 8085 \
-                  --is-main true
+          # ============================
+          # SINGLE CONTAINER DEPLOYMENT
+          # ============================
+          - ${{ if eq(parameters.deploymentMethod, 'single-container') }}:
+            - task: AzureWebAppContainer@1
+              displayName: 'Deploy Single Container to App Service'
+              condition: and(succeeded(), ne('${{ parameters.serviceConnectionAppService }}', ''), ne('${{ parameters.containerRegistry }}', ''), ne('${{ parameters.imageName }}', ''))
+              inputs:
+                azureSubscription: ${{ parameters.serviceConnectionAppService }}
+                appName: ${{ parameters.appName }}
+                imageName: ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:${{ variables.imageTag }}
 
-          - task: AzureWebAppContainer@1
-            displayName: 'Azure App Service on Container Deploy'
-            inputs:
-              azureSubscription: $(serviceConnectionAppService)
-              appName: $(appName)
-              containers: $(container)
-              multicontainerConfigFile: $(dockerComposeFile)
+          # ============================
+          # MULTI-CONTAINER DEPLOYMENT
+          # ============================
+          - ${{ if eq(parameters.deploymentMethod, 'multi-container') }}:
+            - task: DownloadPipelineArtifact@2
+              displayName: 'Download Pipeline Artifact (Docker Compose)'
+              condition: and(succeeded(), ne('${{ parameters.dockerComposeFile }}', ''))
+              inputs:
+                buildType: 'current'
+                artifactName: ${{ parameters.artifactName }}
+                targetPath: '$(Pipeline.Workspace)/build'
 
-
-          # # set default package path variable (can be overridden by universal download)
-          # - bash: |
-          #     echo "##vso[task.setvariable variable=downloadedPackagePath]${{ parameters.packagePath }}"
-          #   displayName: 'Set default package path'
-
-          # # Optionally download from Universal Packages feed when parameters provided
-          # - task: DownloadPackage@1
-          #   displayName: 'Download Universal Package from feed'
-          #   inputs:
-          #     packageType: 'upack'
-          #     feed: '${{ parameters.universalFeedNameApp }}'
-          #     definition: '${{ parameters.universalPackageName }}'
-          #     version: '${{ parameters.universalPackageVersion }}'
-          #     downloadPath: '$(Pipeline.Workspace)/upack'
-
-          # - bash: |
-          #     set -euo pipefail
-          #     FILE=$(find "$(Pipeline.Workspace)/upack" -type f -name '*.zip' -print -quit || true)
-          #     if [ -z "$FILE" ]; then
-          #       echo "No zip file found in downloaded package; setting package path to folder"
-          #       echo "##vso[task.setvariable variable=downloadedPackagePath]$(Pipeline.Workspace)/upack"
-          #     else
-          #       echo "Found package: $FILE"
-          #       echo "##vso[task.setvariable variable=downloadedPackagePath]$FILE"
-          #     fi
-          #   displayName: 'Resolve downloaded package path'
-          # # Download promoted artifact (pipeline artifact fallback)
-          # - download: current
-          #   artifact: ${{ parameters.artifactName }}
-          #   displayName: Download Artifact
-
-          # # ============================
-          # # Windows Web App
-          # # ============================
-          # - task: AzureWebApp@1
-          #   displayName: Deploy Windows Web App
-          #   condition: eq('${{ parameters.appOs }}', 'windows')
-          #   inputs:
-          #     azureSubscription: ${{ parameters.azureSubscription }}
-          #     resourceGroupName: ${{ parameters.resourceGroupName }}
-          #     appType: 'webApp'
-          #     appName: ${{ parameters.appName }}
-          #     package: '$(downloadedPackagePath)'
-
-          # # ============================
-          # # Linux Web App
-          # # ============================
-          # - task: AzureWebApp@1
-          #   displayName: Deploy Linux Web App
-          #   condition: eq('${{ parameters.appOs }}', 'linux')
-          #   inputs:
-          #     azureSubscription: ${{ parameters.azureSubscription }}
-          #     resourceGroupName: ${{ parameters.resourceGroupName }}
-          #     appType: 'webAppLinux'
-          #     appName: ${{ parameters.appName }}
-          #     package: '$(downloadedPackagePath)'
+            - task: AzureWebAppContainer@1
+              displayName: 'Deploy Multi-Container App Service (Docker Compose)'
+              condition: and(succeeded(), ne('${{ parameters.dockerComposeFile }}', ''), ne('${{ parameters.serviceConnectionAppService }}', ''))
+              inputs:
+                azureSubscription: ${{ parameters.serviceConnectionAppService }}
+                appName: ${{ parameters.appName }}
+                multicontainerConfigFile: ${{ parameters.dockerComposeFile }}
