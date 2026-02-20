@@ -69,59 +69,84 @@ stages:
         deploy:
           steps:
 
-          # set default package path variable (can be overridden by universal download)
-          - bash: |
-              echo "##vso[task.setvariable variable=downloadedPackagePath]${{ parameters.packagePath }}"
-            displayName: 'Set default package path'
 
-          # Optionally download from Universal Packages feed when parameters provided
-          - task: DownloadPackage@1
-            displayName: 'Download Universal Package from feed'
+          - task: AzureCLI@2
+            displayName: 'Deploy sidecar containers to App Service'
             inputs:
-              packageType: 'upack'
-              feed: '${{ parameters.universalFeedNameApp }}'
-              definition: '${{ parameters.universalPackageName }}'
-              version: '${{ parameters.universalPackageVersion }}'
-              downloadPath: '$(Pipeline.Workspace)/upack'
+              azureSubscription: $(serviceConnectionAppService)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az webapp sitecontainers update \
+                  --name $(appName) \
+                  --resource-group $(resourceGroup) \
+                  --container-name main \
+                  --image $(containerRegistry)/$(imageName):$(image_tag) \
+                  --target-port 8085 \
+                  --is-main true
 
-          - bash: |
-              set -euo pipefail
-              FILE=$(find "$(Pipeline.Workspace)/upack" -type f -name '*.zip' -print -quit || true)
-              if [ -z "$FILE" ]; then
-                echo "No zip file found in downloaded package; setting package path to folder"
-                echo "##vso[task.setvariable variable=downloadedPackagePath]$(Pipeline.Workspace)/upack"
-              else
-                echo "Found package: $FILE"
-                echo "##vso[task.setvariable variable=downloadedPackagePath]$FILE"
-              fi
-            displayName: 'Resolve downloaded package path'
-          # Download promoted artifact (pipeline artifact fallback)
-          - download: current
-            artifact: ${{ parameters.artifactName }}
-            displayName: Download Artifact
-
-          # ============================
-          # Windows Web App
-          # ============================
-          - task: AzureWebApp@1
-            displayName: Deploy Windows Web App
-            condition: eq('${{ parameters.appOs }}', 'windows')
+          - task: AzureWebAppContainer@1
+            displayName: 'Azure App Service on Container Deploy'
             inputs:
-              azureSubscription: ${{ parameters.azureSubscription }}
-              resourceGroupName: ${{ parameters.resourceGroupName }}
-              appType: 'webApp'
-              appName: ${{ parameters.appName }}
-              package: '$(downloadedPackagePath)'
+              azureSubscription: $(serviceConnectionAppService)
+              appName: $(appName)
+              containers: $(container)
+              multicontainerConfigFile: $(dockerComposeFile)
 
-          # ============================
-          # Linux Web App
-          # ============================
-          - task: AzureWebApp@1
-            displayName: Deploy Linux Web App
-            condition: eq('${{ parameters.appOs }}', 'linux')
-            inputs:
-              azureSubscription: ${{ parameters.azureSubscription }}
-              resourceGroupName: ${{ parameters.resourceGroupName }}
-              appType: 'webAppLinux'
-              appName: ${{ parameters.appName }}
-              package: '$(downloadedPackagePath)'
+
+          # # set default package path variable (can be overridden by universal download)
+          # - bash: |
+          #     echo "##vso[task.setvariable variable=downloadedPackagePath]${{ parameters.packagePath }}"
+          #   displayName: 'Set default package path'
+
+          # # Optionally download from Universal Packages feed when parameters provided
+          # - task: DownloadPackage@1
+          #   displayName: 'Download Universal Package from feed'
+          #   inputs:
+          #     packageType: 'upack'
+          #     feed: '${{ parameters.universalFeedNameApp }}'
+          #     definition: '${{ parameters.universalPackageName }}'
+          #     version: '${{ parameters.universalPackageVersion }}'
+          #     downloadPath: '$(Pipeline.Workspace)/upack'
+
+          # - bash: |
+          #     set -euo pipefail
+          #     FILE=$(find "$(Pipeline.Workspace)/upack" -type f -name '*.zip' -print -quit || true)
+          #     if [ -z "$FILE" ]; then
+          #       echo "No zip file found in downloaded package; setting package path to folder"
+          #       echo "##vso[task.setvariable variable=downloadedPackagePath]$(Pipeline.Workspace)/upack"
+          #     else
+          #       echo "Found package: $FILE"
+          #       echo "##vso[task.setvariable variable=downloadedPackagePath]$FILE"
+          #     fi
+          #   displayName: 'Resolve downloaded package path'
+          # # Download promoted artifact (pipeline artifact fallback)
+          # - download: current
+          #   artifact: ${{ parameters.artifactName }}
+          #   displayName: Download Artifact
+
+          # # ============================
+          # # Windows Web App
+          # # ============================
+          # - task: AzureWebApp@1
+          #   displayName: Deploy Windows Web App
+          #   condition: eq('${{ parameters.appOs }}', 'windows')
+          #   inputs:
+          #     azureSubscription: ${{ parameters.azureSubscription }}
+          #     resourceGroupName: ${{ parameters.resourceGroupName }}
+          #     appType: 'webApp'
+          #     appName: ${{ parameters.appName }}
+          #     package: '$(downloadedPackagePath)'
+
+          # # ============================
+          # # Linux Web App
+          # # ============================
+          # - task: AzureWebApp@1
+          #   displayName: Deploy Linux Web App
+          #   condition: eq('${{ parameters.appOs }}', 'linux')
+          #   inputs:
+          #     azureSubscription: ${{ parameters.azureSubscription }}
+          #     resourceGroupName: ${{ parameters.resourceGroupName }}
+          #     appType: 'webAppLinux'
+          #     appName: ${{ parameters.appName }}
+          #     package: '$(downloadedPackagePath)'

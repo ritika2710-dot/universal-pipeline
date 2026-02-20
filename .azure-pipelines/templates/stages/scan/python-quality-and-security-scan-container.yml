@@ -422,7 +422,7 @@ stages:
 
 
         # Step 18: Wiz Directory Scan (conditionally included)
-        - ${{ if and(eq(parameters.runWiz, true), ne(parameters.wizServiceConnection, '')) }}:
+        - ${{ if eq(parameters.runWiz, true) }}:
           - task: wiz@0
             displayName: Run Wiz Directory Scan (service-connection)
             inputs:
@@ -435,20 +435,6 @@ stages:
               scanPolicies: ${{ parameters.wizScanPolicies }}
               useServiceConnection: true
               serviceConnectionId: ${{ parameters.wizServiceConnection }}
-        - ${{ if and(eq(parameters.runWiz, true), and(eq(parameters.wizServiceConnection, ''), and(ne(parameters.wizClientId, ''), ne(parameters.wizClientSecret, '')))) }}:
-          - task: wiz@0
-            displayName: Run Wiz Directory Scan (client-credentials)
-            inputs:
-              command: 'dir'
-              clientid: ${{ parameters.wizClientId }}
-              secret: ${{ parameters.wizClientSecret }}
-              failOnSeverity: ${{ parameters.wizFailOnSeverity }}
-              policyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
-              succeedOnFailures: ${{ parameters.wizSucceedOnFailures }}
-              scanTags: 'directory'
-              path: '${{ parameters.projectPath }}'
-              scanPolicies: ${{ parameters.wizScanPolicies }}
-              useServiceConnection: false
 
 
         # Step 19: Load built Docker image (from Build artifacts) and set variable for scanning

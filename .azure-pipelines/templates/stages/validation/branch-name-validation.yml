@@ -71,12 +71,26 @@ stages:
                 exit 0
               fi
 
+              # 4) hotfix/* -> develop
+              if [[ "$src_branch" =~ ^hotfix\/.+$ && "$tgt_branch" == "develop" ]]; then
+                echo "Allowed: hotfix/* -> develop"
+                exit 0
+              fi
+
+              # 5) main -> develop (backport after release)
+              if [[ "$src_branch" == "main" && "$tgt_branch" == "develop" ]]; then
+                echo "Allowed: main -> develop"
+                exit 0
+              fi
+
               echo "INVALID PR MERGE:"
               echo "Source: $src_branch"
               echo "Target: $tgt_branch"
               echo "Allowed:"
-              echo "  - feature/* -> develop"
-              echo "  - develop   -> main"
-              echo "  - hotfix/*  -> main"
+              echo "  - feature/*   -> develop"
+              echo "  - develop     -> main"
+              echo "  - hotfix/*    -> main"
+              echo "  - hotfix/*    -> develop"
+              echo "  - main        -> develop"
               exit 1
             displayName: 'Validate allowed PR source → target rules'
