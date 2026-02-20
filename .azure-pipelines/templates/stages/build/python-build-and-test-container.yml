@@ -179,7 +179,8 @@ stages:
           fi
             
           echo "Found Dockerfile at: $DOCKERFILE_FULL_PATH"
-          echo "##vso[task.setvariable name=RESOLVED_DOCKERFILE]$DOCKERFILE_FULL_PATH"
+          echo "##vso[task.setvariable variable=RESOLVED_DOCKERFILE;isOutput=true]$DOCKERFILE_FULL_PATH"
+        name: ResolveDockerfile
 
     - task: Bash@3
       displayName: 'Docker Image Build'
@@ -189,9 +190,9 @@ stages:
         script: |
           set -e
           IMAGE_TAG="build-image:${{ parameters.dockerTags }}-$(Build.BuildId)"
-          DOCKERFILE_PATH="$(RESOLVED_DOCKERFILE)"
+          DOCKERFILE_PATH="$(ResolveDockerfile.RESOLVED_DOCKERFILE)"
           BUILD_CONTEXT="${{ parameters.dockerBuildContext }}"
-          
+            
           echo "Building Docker image: $IMAGE_TAG"
           echo "Dockerfile: $DOCKERFILE_PATH"
           echo "Build context: $BUILD_CONTEXT"
