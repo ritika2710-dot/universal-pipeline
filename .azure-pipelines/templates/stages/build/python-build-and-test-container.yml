@@ -159,51 +159,50 @@ stages:
           echo "Artifacts in $(Build.ArtifactStagingDirectory):"
           ls -la "$(Build.ArtifactStagingDirectory)" || true
 
-    - ${{ if eq(parameters.isContainerized, true) }}:
-      - task: Bash@3
-        displayName: 'Resolve Dockerfile Path'
-        inputs:
-          targetType: inline
-          script: |
-            set -e
-            DOCKERFILE_DIR="${{ parameters.dockerfilePath }}"
-            DOCKERFILE_NAME="${{ parameters.dockerfileName }}"
-            DOCKERFILE_FULL_PATH="$DOCKERFILE_DIR/$DOCKERFILE_NAME"
+    - task: Bash@3
+      displayName: 'Resolve Dockerfile Path'
+      inputs:
+        targetType: inline
+        script: |
+          set -e
+          DOCKERFILE_DIR="${{ parameters.dockerfilePath }}"
+          DOCKERFILE_NAME="${{ parameters.dockerfileName }}"
+          DOCKERFILE_FULL_PATH="$DOCKERFILE_DIR/$DOCKERFILE_NAME"
+          
+          echo "Looking for Dockerfile at: $DOCKERFILE_FULL_PATH"
             
-            echo "Looking for Dockerfile at: $DOCKERFILE_FULL_PATH"
+          if [ ! -f "$DOCKERFILE_FULL_PATH" ]; then
+            echo "ERROR: Dockerfile not found at $DOCKERFILE_FULL_PATH"
+            echo "Available files in $DOCKERFILE_DIR:"
+            ls -la "$DOCKERFILE_DIR" || echo "Directory does not exist"
+            exit 1
+          fi
             
-            if [ ! -f "$DOCKERFILE_FULL_PATH" ]; then
-              echo "ERROR: Dockerfile not found at $DOCKERFILE_FULL_PATH"
-              echo "Available files in $DOCKERFILE_DIR:"
-              ls -la "$DOCKERFILE_DIR" || echo "Directory does not exist"
-              exit 1
-            fi
-            
-            echo "Found Dockerfile at: $DOCKERFILE_FULL_PATH"
-            echo "##vso[task.setvariable name=RESOLVED_DOCKERFILE]$DOCKERFILE_FULL_PATH"
+          echo "Found Dockerfile at: $DOCKERFILE_FULL_PATH"
+          echo "##vso[task.setvariable name=RESOLVED_DOCKERFILE]$DOCKERFILE_FULL_PATH"
 
-      - task: Bash@3
-        displayName: 'Docker Image Build'
-        condition: succeeded()
-        inputs:
-          targetType: inline
-          script: |
-            set -e
-            IMAGE_TAG="build-image:${{ parameters.dockerTags }}-$(Build.BuildId)"
-            DOCKERFILE_PATH="$(RESOLVED_DOCKERFILE)"
-            BUILD_CONTEXT="${{ parameters.dockerBuildContext }}"
+    - task: Bash@3
+      displayName: 'Docker Image Build'
+      condition: succeeded()
+      inputs:
+        targetType: inline
+        script: |
+          set -e
+          IMAGE_TAG="build-image:${{ parameters.dockerTags }}-$(Build.BuildId)"
+          DOCKERFILE_PATH="$(RESOLVED_DOCKERFILE)"
+          BUILD_CONTEXT="${{ parameters.dockerBuildContext }}"
+          
+          echo "Building Docker image: $IMAGE_TAG"
+          echo "Dockerfile: $DOCKERFILE_PATH"
+          echo "Build context: $BUILD_CONTEXT"
             
-            echo "Building Docker image: $IMAGE_TAG"
-            echo "Dockerfile: $DOCKERFILE_PATH"
-            echo "Build context: $BUILD_CONTEXT"
+          docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" "$BUILD_CONTEXT"
             
-            docker build -f "$DOCKERFILE_PATH" -t "$IMAGE_TAG" "$BUILD_CONTEXT"
+          echo "Saving Docker image to artifact staging directory"
+          mkdir -p "$(Build.ArtifactStagingDirectory)"
+          docker save -o "$(Build.ArtifactStagingDirectory)/image.tar" "$IMAGE_TAG"
             
-            echo "Saving Docker image to artifact staging directory"
-            mkdir -p "$(Build.ArtifactStagingDirectory)"
-            docker save -o "$(Build.ArtifactStagingDirectory)/image.tar" "$IMAGE_TAG"
-            
-            echo "Docker image saved as: $(Build.ArtifactStagingDirectory)/image.tar"
+          echo "Docker image saved as: $(Build.ArtifactStagingDirectory)/image.tar"
 
     - task: ArchiveFiles@2
       displayName: 'Archive Project Files for Deployment'
