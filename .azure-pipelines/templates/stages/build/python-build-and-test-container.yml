@@ -162,7 +162,9 @@ stages:
     # Docker v2
     # Build or push Docker images, login or logout, start or stop containers, or run a Docker command.
     - task: Docker@2
+      displayName: 'Docker Image build'
       inputs:
+        repository: 'app-image'
         command: 'build' # 'buildAndPush' | 'build' | 'push' | 'login' | 'logout' | 'start' | 'stop'. Required. Command. Default: buildAndPush.
         Dockerfile: ${{ parameters.dockerfilePath }}/${{ parameters.dockerfileName }}
         buildContext: ${{ parameters.dockerBuildContext }} 
@@ -193,7 +195,7 @@ stages:
     #     name: ResolveDockerfile
 
     - task: Bash@3
-      displayName: 'Docker Image Build'
+      displayName: 'Docker Save Image to Artifact'
       condition: succeeded()
       env:
         DOCKERFILE_PATH: $(ResolveDockerfile.RESOLVED_DOCKERFILE)
@@ -205,7 +207,7 @@ stages:
           set -e
           echo "Saving Docker image to artifact staging directory"
           mkdir -p "$(Build.ArtifactStagingDirectory)"
-          docker save -o "$(Build.ArtifactStagingDirectory)/image.tar" "$(Build.BuildId)"
+          docker save -o "$(Build.ArtifactStagingDirectory)/image.tar" "app-image:$(Build.BuildId)"
             
           echo "Docker image saved as: $(Build.ArtifactStagingDirectory)/image.tar"
 
