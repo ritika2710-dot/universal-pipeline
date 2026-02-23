@@ -159,7 +159,7 @@ stages:
                 deployToSlotOrASE:  ${{ parameters.deployToSlotOrASE }}
                 resourceGroupName: ${{ parameters.resourceGroupName }}
                 slotName:  ${{ parameters.slotName }}
-                containers: ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:${{ variables.imageTag }}
+                containers: ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:$(imageTag)
                 containerCommand: ${{ parameters.containerCommand }}                
                 # appSettings: ${{ parameters.appSettings }}
                 # configurationStrings: ${{ parameters.configurationStrings }}
