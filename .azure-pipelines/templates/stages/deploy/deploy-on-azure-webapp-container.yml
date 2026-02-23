@@ -162,9 +162,9 @@ stages:
                 slotName:  ${{ parameters.slotName }}
                 containers: ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:${{ variables.imageTag }}
                 containerCommand: ${{ parameters.containerCommand }}                
-                appSettings: ${{ parameters.appSettings }}
-                configurationStrings: ${{ parameters.configurationStrings }}
-                siteContainersConfig: ${{ parameters.siteContainersConfig }}
+                # appSettings: ${{ parameters.appSettings }}
+                # configurationStrings: ${{ parameters.configurationStrings }}
+                # siteContainersConfig: ${{ parameters.siteContainersConfig }}
 
           # ============================
           # MULTI-CONTAINER DEPLOYMENT
