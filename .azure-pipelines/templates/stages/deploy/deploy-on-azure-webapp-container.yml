@@ -130,11 +130,11 @@ stages:
     variables:
     
       ${{ if and(eq(parameters.isProdDeployment, 'true'), ne(parameters.prodImageTag, '')) }}:
-            imageTag: ${{ parameters.prodImageTag }}
+            imageTag: "${{ parameters.prodImageTag }}"
       ${{ if ne(parameters.isProdDeployment, 'true') }}:
-            imageTag: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
+            imageTag: "$[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]"
       ${{ if and(eq(parameters.isProdDeployment, 'true'), eq(parameters.prodImageTag, '')) }}:
-            imageTag: 'null'
+            imageTag: "null"
 
     strategy:
       runOnce:
