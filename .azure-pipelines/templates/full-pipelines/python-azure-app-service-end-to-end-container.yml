@@ -207,61 +207,61 @@ stages:
 # STAGES
 # ============================================================
 
-# # ------------------------------------------------------------
-# # Stage 1: Branch Name Validation (PR only)
-# # ------------------------------------------------------------
-# - ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
-#   - template: ../stages/validation/branch-name-validation.yml
-#     parameters:
-#       stageName: ${{ parameters.stageName }}
-#       displayName: ${{ parameters.displayName }}
-#       jobName: ${{ parameters.jobName }}
-#       jobDisplayName: ${{ parameters.jobDisplayName }}
+# ------------------------------------------------------------
+# Stage 1: Branch Name Validation (PR only)
+# ------------------------------------------------------------
+- ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
+  - template: ../stages/validation/branch-name-validation.yml
+    parameters:
+      stageName: ${{ parameters.stageName }}
+      displayName: ${{ parameters.displayName }}
+      jobName: ${{ parameters.jobName }}
+      jobDisplayName: ${{ parameters.jobDisplayName }}
 
-# # ------------------------------------------------------------
-# # Stage 2: Build & Test
-# # ------------------------------------------------------------
+# ------------------------------------------------------------
+# Stage 2: Build & Test
+# ------------------------------------------------------------
 
-# - template: ../stages/build/python-build-and-test-container.yml
-#   parameters:
-#     pythonVersion: ${{ parameters.pythonVersion }}
-#     requirementsFile: ${{ parameters.requirementsFile }}
-#     testResultsPath: ${{ parameters.testResultsPath }}
-#     archiveFileName: ${{ parameters.archiveFileName }}
-#     artifactName: ${{ parameters.artifactName }}
-#     projectPath: ${{ parameters.projectPath }}
-#     dockerfilePath: ${{ parameters.dockerfilePath }}   
-#     dockerfileName: ${{ parameters.dockerfileName }}
-#     dockerBuildContext: ${{ parameters.dockerBuildContext }} 
-#     dockerTags: ${{ parameters.dockerTags }}
+- template: ../stages/build/python-build-and-test-container.yml
+  parameters:
+    pythonVersion: ${{ parameters.pythonVersion }}
+    requirementsFile: ${{ parameters.requirementsFile }}
+    testResultsPath: ${{ parameters.testResultsPath }}
+    archiveFileName: ${{ parameters.archiveFileName }}
+    artifactName: ${{ parameters.artifactName }}
+    projectPath: ${{ parameters.projectPath }}
+    dockerfilePath: ${{ parameters.dockerfilePath }}   
+    dockerfileName: ${{ parameters.dockerfileName }}
+    dockerBuildContext: ${{ parameters.dockerBuildContext }} 
+    dockerTags: ${{ parameters.dockerTags }}
 
-# # ------------------------------------------------------------
-# # Stage 3: Run Scan
-# # ------------------------------------------------------------
+# ------------------------------------------------------------
+# Stage 3: Run Scan
+# ------------------------------------------------------------
 
-# - template: ../stages/scan/python-quality-and-security-scan-container.yml
-#   parameters:
-#     pythonVersion: ${{ parameters.pythonVersion }}
-#     sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
-#     sonarQubeServiceConnection: ${{ parameters.sonarQubeServiceConnection }}
-#     sonarQubeProjectKey: ${{ parameters.sonarQubeProjectKey }}
-#     sonarQubeUrl: ${{ parameters.sonarQubeUrl }}
-#     sonarQubeToken: ${{ parameters.sonarQubeToken }}
-#     branchFilter: ${{ parameters.branchFilter }}
-#     wizClientId: ${{ parameters.wizClientId }}
-#     wizClientSecret: ${{ parameters.wizClientSecret }}
-#     wizServiceConnection: ${{ parameters.wizServiceConnection }}
-#     wizScanPolicies: ${{ parameters.wizScanPolicies }}
-#     wizFailOnSeverity: ${{ parameters.wizFailOnSeverity }}
-#     wizPolicyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
-#     wizSucceedOnFailures: ${{ parameters.wizSucceedOnFailures }}
-#     wizContainerSucceedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
-#     wizContainerimage: ${{ parameters.wizContainerimage }}
-#     wizContainerpolicyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
-#     wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
-#     artifactName: ${{ parameters.artifactName }}
-#     projectPath: ${{ parameters.projectPath }}
-#     runWiz: ${{ parameters.runWiz }}
+- template: ../stages/scan/python-quality-and-security-scan-container.yml
+  parameters:
+    pythonVersion: ${{ parameters.pythonVersion }}
+    sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
+    sonarQubeServiceConnection: ${{ parameters.sonarQubeServiceConnection }}
+    sonarQubeProjectKey: ${{ parameters.sonarQubeProjectKey }}
+    sonarQubeUrl: ${{ parameters.sonarQubeUrl }}
+    sonarQubeToken: ${{ parameters.sonarQubeToken }}
+    branchFilter: ${{ parameters.branchFilter }}
+    wizClientId: ${{ parameters.wizClientId }}
+    wizClientSecret: ${{ parameters.wizClientSecret }}
+    wizServiceConnection: ${{ parameters.wizServiceConnection }}
+    wizScanPolicies: ${{ parameters.wizScanPolicies }}
+    wizFailOnSeverity: ${{ parameters.wizFailOnSeverity }}
+    wizPolicyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+    wizSucceedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+    wizContainerSucceedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+    wizContainerimage: ${{ parameters.wizContainerimage }}
+    wizContainerpolicyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+    wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+    artifactName: ${{ parameters.artifactName }}
+    projectPath: ${{ parameters.projectPath }}
+    runWiz: ${{ parameters.runWiz }}
 
 # ------------------------------------------------------------
 # Stage 4: Release Tagging
