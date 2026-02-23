@@ -192,10 +192,6 @@ parameters:
   type: string
   default: ''
 
-- name: appOs
-  type: string
-  default: 'linux'   # windows | linux
-
 # Log Collection
 - name: logUniversalFeedName
   type: string
@@ -315,6 +311,8 @@ stages:
           stageDependsOnRelease: false
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
+          deploymentMethod: ${{ env.deploymentMethod }}
+          sidecarContainerName: ${{ env.sidecarContainerName }}
           environment: ${{ env.name }}
           serviceConnectionAppService: ${{ env.serviceConnectionAppService }}
           resourceGroupName: ${{ env.resourceGroupName }}
@@ -333,6 +331,10 @@ stages:
           stageDependsOnRelease: true
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
+          deploymentMethod: ${{ env.deploymentMethod }}
+          sidecarTargetPort: ${{ env.sidecarTargetPort }}
+          sidecarContainerName: ${{ env.sidecarContainerName }}
+          isSidecarMain: ${{ env.isSidecarMain }}
           environment: ${{ env.name }}
           serviceConnectionAppService: ${{ env.serviceConnectionAppService }}
           resourceGroupName: ${{ env.resourceGroupName }}
@@ -351,6 +353,10 @@ stages:
           stageDependsOnRelease: true
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
+          deploymentMethod: ${{ env.deploymentMethod }}
+          sidecarTargetPort: ${{ env.sidecarTargetPort }}
+          sidecarContainerName: ${{ env.sidecarContainerName }}
+          isSidecarMain: ${{ env.isSidecarMain }}
           environment: ${{ env.name }}
           serviceConnectionAppService: ${{ env.serviceConnectionAppService }}
           resourceGroupName: ${{ env.resourceGroupName }}
@@ -370,6 +376,10 @@ stages:
           stageDependsOnRelease: false
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
+          deploymentMethod: ${{ env.deploymentMethod }}
+          sidecarTargetPort: ${{ env.sidecarTargetPort }}
+          sidecarContainerName: ${{ env.sidecarContainerName }}
+          isSidecarMain: ${{ env.isSidecarMain }}
           environment: ${{ env.name }}
           isProdDeployment: 'true'
           serviceConnectionAppService: ${{ env.serviceConnectionAppService }}
