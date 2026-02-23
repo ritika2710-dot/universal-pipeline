@@ -215,7 +215,14 @@ stages:
 # ============================================================
 # STAGES
 # ============================================================
-
+- stage: "Initialize"
+  displayName: "Initialize Pipeline"
+  jobs:
+    - job: "Print Initialization"
+      displayName: "Print Initialization"
+      steps:
+        - bash: |
+            echo "Initializing pipeline variables and configuration..."
 # ------------------------------------------------------------
 # Stage 1: Branch Name Validation (PR only)
 # ------------------------------------------------------------
