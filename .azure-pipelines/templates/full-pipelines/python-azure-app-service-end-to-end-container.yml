@@ -10,7 +10,7 @@ parameters:
 
 - name: displayName
   type: string
-  default: 'Stage 1 - Enforce Branch Naming (PRs Only)'
+  default: 'Stage - Enforce Branch Naming (PRs Only)'
 
 - name: jobName
   type: string
