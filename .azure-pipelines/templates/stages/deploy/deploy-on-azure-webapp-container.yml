@@ -67,12 +67,16 @@ parameters:
   - name: imageTag
     type: string
     default: 'latest'
+  
+  - name: prodImageTag
+    type: string
+    default: ''
 
-  - name: containerName
+  - name: sidecarContainerName
     type: string
     default: 'main'
 
-  - name: targetPort
+  - name: sidecarTargetPort
     type: number
     default: 5000
 
@@ -103,6 +107,10 @@ parameters:
   - name: containerCommand
     type: string
     default: ''
+  - name: isProdDeployment
+    type: string 
+    default: 'false' # 'true' or 'false'
+
 
 
 stages:
@@ -120,7 +128,11 @@ stages:
     displayName: ${{ parameters.jobDisplayName }}
     environment: ${{ parameters.environment }}
     variables:
-      imageTag: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
+    
+      ${{ if and(eq(parameters.isProdDeployment, 'true'), ne(parameters.prodImageTag, '') }}:
+            imageTag: ${{ parameters.prodImageTag }}
+      ${{ if and(ne(parameters.isProdDeployment, 'true'), eq(parameters.prodImageTag, '') }}:
+            imageTag: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
 
     strategy:
       runOnce:
@@ -133,7 +145,6 @@ stages:
           - ${{ if eq(parameters.deploymentMethod, 'sidecar') }}:
             - task: AzureCLI@2
               displayName: 'Deploy Sidecar Container to App Service'
-              condition: and(succeeded(), ne('${{ parameters.serviceConnectionAppService }}', ''), ne('${{ parameters.containerRegistry }}', ''), ne('${{ parameters.imageName }}', ''))
               inputs:
                 azureSubscription: ${{ parameters.serviceConnectionAppService }}
                 scriptType: bash
@@ -142,9 +153,9 @@ stages:
                   az webapp sitecontainers update \
                     --name ${{ parameters.appName }} \
                     --resource-group ${{ parameters.resourceGroupName }} \
-                    --container-name ${{ parameters.containerName }} \
+                    --container-name ${{ parameters.sidecarContainerName }} \
                     --image ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:$(imageTag) \
-                    --target-port ${{ parameters.targetPort }} \
+                    --target-port ${{ parameters.sidecarTargetPort }} \
                     --is-main ${{ parameters.isSidecarMain }}
 
           # ============================
@@ -179,7 +190,6 @@ stages:
           - ${{ if eq(parameters.deploymentMethod, 'multi-container') }}:
             - task: DownloadPipelineArtifact@2
               displayName: 'Download Pipeline Artifact (Docker Compose)'
-              condition: and(succeeded(), ne('${{ parameters.dockerComposeFile }}', ''))
               inputs:
                 buildType: 'current'
                 artifactName: ${{ parameters.artifactName }}
@@ -187,8 +197,8 @@ stages:
 
             - task: AzureWebAppContainer@1
               displayName: 'Deploy Multi-Container App Service (Docker Compose)'
-              condition: and(succeeded(), ne('${{ parameters.dockerComposeFile }}', ''), ne('${{ parameters.serviceConnectionAppService }}', ''))
               inputs:
                 azureSubscription: ${{ parameters.serviceConnectionAppService }}
                 appName: ${{ parameters.appName }}
+                resourceGroupName: ${{ parameters.resourceGroupName }}
                 multicontainerConfigFile: ${{ parameters.dockerComposeFile }}
