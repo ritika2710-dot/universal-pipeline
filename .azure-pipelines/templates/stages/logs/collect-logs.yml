@@ -87,5 +87,5 @@ stages:
             vstsFeedPublish: '${{ parameters.logUniversalFeedName }}'
             vstsFeedPackagePublish: '${{ parameters.logsPackageName }}'
             versionOption: 'custom'
-            versionPublish: '$(Build.BuildId)'
+            versionPublish: '1.0.$(Build.BuildId)'
             packagePublishDescription: '${{ parameters.packageDescription }}'
