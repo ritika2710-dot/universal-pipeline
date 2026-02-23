@@ -366,7 +366,6 @@ stages:
         parameters:
           stageName: 'Deploy_${{ env.name }}'
           stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
-          dependsOn: 'ReleaseStage'
           stageDependsOnRelease: false
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
