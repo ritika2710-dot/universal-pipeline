@@ -66,6 +66,14 @@ parameters:
   type: string
   default: 'latest'
 
+- name: acrServiceConnection
+  type: string
+  default: '' # Azure DevOps service connection to ACR
+
+- name: acrRepository
+  type: string
+  default: '' # e.g. myregistry.azurecr.io/myapp
+
 # SonarQube parameters
 - name: sonarReportArtifactName
   type: string
@@ -271,6 +279,8 @@ stages:
       dockerfilePath: ${{ parameters.dockerfilePath }}   
       dockerfileName: ${{ parameters.dockerfileName }}
       dockerBuildContext: ${{ parameters.dockerBuildContext }} 
+      acrServiceConnection: ${{ parameters.acrServiceConnection }}
+      acrRepository: ${{ parameters.acrRepository }}
 
 # ------------------------------------------------------------
 # Stage 5: Deploy to Azure Web App
