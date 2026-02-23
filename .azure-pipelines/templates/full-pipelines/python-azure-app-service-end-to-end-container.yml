@@ -238,7 +238,7 @@ stages:
 # Stage 2: Build & Test
 # ------------------------------------------------------------
 
-- ${{ if or(and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/develop')), and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))) }}:
+- ${{ if or(and(eq(variables['Build.Reason'], 'PullRequest'), and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))) }}:
   - template: ../stages/build/python-build-and-test-container.yml
     parameters:
       pythonVersion: ${{ parameters.pythonVersion }}
@@ -256,9 +256,7 @@ stages:
 # Stage 3: Run Scan
 # ------------------------------------------------------------
 
-- ${{ if or(and(eq(variables['Build.Reason'], 'PullRequest'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/develop')), and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))) }}:
-  - template: ../stages/scan/python-quality-and-security-scan-container.yml
-    parameters:
+- ${{ if or(and(eq(variables['Build.Reason'], 'PullRequest'), and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))) }}:
       pythonVersion: ${{ parameters.pythonVersion }}
       sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
       sonarQubeServiceConnection: ${{ parameters.sonarQubeServiceConnection }}
