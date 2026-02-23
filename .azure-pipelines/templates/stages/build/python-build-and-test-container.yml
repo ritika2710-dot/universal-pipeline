@@ -67,7 +67,7 @@ parameters:
 
 stages:
 - stage: BuildStage
-  displayName: "Stage 2 - Build & Test"
+  displayName: "Stage - Build & Test"
   jobs:
   - job: BuildJob
     displayName: Build & Test

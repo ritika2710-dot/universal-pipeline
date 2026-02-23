@@ -231,7 +231,7 @@ stages:
 # Stage 2: Build & Test
 # ------------------------------------------------------------
 
-- ${{ if and(eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/develop') }}:
   - template: ../stages/build/python-build-and-test-container.yml
     parameters:
       pythonVersion: ${{ parameters.pythonVersion }}
@@ -249,7 +249,7 @@ stages:
 # Stage 3: Run Scan
 # ------------------------------------------------------------
 
-- ${{ if and(eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
+- ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/develop') }}:
   - template: ../stages/scan/python-quality-and-security-scan-container.yml
     parameters:
       pythonVersion: ${{ parameters.pythonVersion }}

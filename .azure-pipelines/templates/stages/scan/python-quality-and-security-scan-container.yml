@@ -107,7 +107,7 @@ parameters:
 
 stages:
 - stage: CodeQualityStage
-  displayName: "Stage 3 - Code Quality & Security Analysis"
+  displayName: "Stage - Code Quality & Security Analysis"
   variables:
     - name: sonarReportFilenamePR
       value: 'SonarScan-PR-$(System.PullRequest.PullRequestId).pdf'
