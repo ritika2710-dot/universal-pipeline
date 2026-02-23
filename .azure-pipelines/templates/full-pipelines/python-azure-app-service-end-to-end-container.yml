@@ -381,9 +381,9 @@ stages:
     parameters:
       stageName: 'CollectLogsStage'
       stageDisplayName: 'Collect & Publish Pipeline Logs'
-      dependsOn:
-        - 'ReleaseStage'
-      condition: 'always()'
+      # dependsOn:
+      #   - 'ReleaseStage'
+      condition: 'succeededOrFailed()'
       jobName: 'CollectLogsJob'
       jobDisplayName: 'Collect Pipeline Logs'
       logUniversalFeedName: ${{ parameters.logUniversalFeedName }}

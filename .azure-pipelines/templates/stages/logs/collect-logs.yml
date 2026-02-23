@@ -48,8 +48,8 @@ parameters:
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: ${{ parameters.stageDisplayName }}
-  dependsOn: ${{ parameters.dependsOn }}
-  condition: ${{ parameters.condition }}
+  # dependsOn: ${{ parameters.dependsOn }}
+  # condition: ${{ parameters.condition }}
   jobs:
     - job: ${{ parameters.jobName }}
       displayName: ${{ parameters.jobDisplayName }}
