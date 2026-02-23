@@ -167,7 +167,7 @@ stages:
                 deployToSlotOrASE:  ${{ parameters.deployToSlotOrASE }}
                 resourceGroupName: ${{ parameters.resourceGroupName }}
                 slotName:  ${{ parameters.slotName }}
-                containers: 'ulpoc.azurecr.io/ul-test-app:$(imageTag)'
+                containers: ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:$(imageTag)"
                 containerCommand: ${{ parameters.containerCommand }}                
                 # appSettings: ${{ parameters.appSettings }}
                 # configurationStrings: ${{ parameters.configurationStrings }}
