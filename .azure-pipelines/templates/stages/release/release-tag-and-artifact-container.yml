@@ -200,32 +200,32 @@ stages:
             artifact: 'Build-Drop'
             path: '$(Pipeline.Workspace)/build'
 
-        - task: Bash@3
-          displayName: 'Load built image from artifact'
-          inputs:
-            targetType: inline
-            script: |
-              set -e
-              IMAGE_TAR="$(Pipeline.Workspace)/build/image.tar"
-              if [ -f "$IMAGE_TAR" ]; then
-                echo "Found image tar: $IMAGE_TAR. Loading..."
-                LOADED=$(docker load -i "$IMAGE_TAR" | sed -n "s/Loaded image: //p" | head -n1)
-                echo "Loaded image: $LOADED"
-                echo "##vso[task.setvariable variable=containerToScan]$LOADED"
-                docker tag "$LOADED" "${{ parameters.acrRepository }}:$(calversion.new_version)"
-              else
-                echo "No image to scan (no image.tar is provided). Skipping container load."
-              fi
-              docker image ls
+        # - task: Bash@3
+        #   displayName: 'Load built image from artifact'
+        #   inputs:
+        #     targetType: inline
+        #     script: |
+        #       set -e
+        #       IMAGE_TAR="$(Pipeline.Workspace)/build/image.tar"
+        #       if [ -f "$IMAGE_TAR" ]; then
+        #         echo "Found image tar: $IMAGE_TAR. Loading..."
+        #         LOADED=$(docker load -i "$IMAGE_TAR" | sed -n "s/Loaded image: //p" | head -n1)
+        #         echo "Loaded image: $LOADED"
+        #         echo "##vso[task.setvariable variable=containerToScan]$LOADED"
+        #         docker tag "$LOADED" "${{ parameters.acrRepository }}:$(calversion.new_version)"
+        #       else
+        #         echo "No image to scan (no image.tar is provided). Skipping container load."
+        #       fi
+        #       docker image ls
 
         - task: Docker@2
           displayName: 'Build and Push Docker image to ACR'
           inputs:
-            command: 'Push'
+            command: 'buildAndPush'
             containerRegistry: '${{ parameters.acrServiceConnection }}'
             repository: '${{ parameters.acrRepository }}'
-            #Dockerfile: ${{ parameters.dockerfilePath }}/${{ parameters.dockerfileName }}
-            #buildContext: ${{ parameters.dockerBuildContext }} 
+            Dockerfile: ${{ parameters.dockerfilePath }}/${{ parameters.dockerfileName }}
+            buildContext: ${{ parameters.dockerBuildContext }} 
             tags: |
               $(calversion.new_version)
               latest
