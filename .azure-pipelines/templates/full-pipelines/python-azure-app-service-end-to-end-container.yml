@@ -171,7 +171,7 @@ parameters:
    
 
 # Deployment (Azure Web App specific)
-- name: azureSubscriptionServiceConnection
+- name: serviceConnectionAppService
   type: string
   default: ''
 
@@ -298,7 +298,7 @@ stages:
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
-          azureSubscription: ${{ env.azureSubscription }}
+          serviceConnectionAppService: ${{ env.serviceConnectionAppService }}
           resourceGroupName: ${{ env.resourceGroupName }}
           appName: ${{ env.appName }}
           containerRegistry: ${{ env.containerRegistry }}
@@ -316,7 +316,7 @@ stages:
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
-          azureSubscription: ${{ env.azureSubscription }}
+          serviceConnectionAppService: ${{ env.serviceConnectionAppService }}
           resourceGroupName: ${{ env.resourceGroupName }}
           appName: ${{ env.appName }}
           containerRegistry: ${{ env.containerRegistry }}
@@ -334,7 +334,7 @@ stages:
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
-          azureSubscription: ${{ env.azureSubscription }}
+          serviceConnectionAppService: ${{ env.serviceConnectionAppService }}
           resourceGroupName: ${{ env.resourceGroupName }}
           appName: ${{ env.appName }}
           containerRegistry: ${{ env.containerRegistry }}
@@ -353,7 +353,7 @@ stages:
           jobName: 'DeployWebApp'
           jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
-          azureSubscription: ${{ env.azureSubscription }}
+          serviceConnectionAppService: ${{ env.serviceConnectionAppService }}
           resourceGroupName: ${{ env.resourceGroupName }}
           appName: ${{ env.appName }}
           containerRegistry: ${{ env.containerRegistry }}
