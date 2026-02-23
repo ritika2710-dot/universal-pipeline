@@ -153,7 +153,6 @@ stages:
           - ${{ if eq(parameters.deploymentMethod, 'single-container') }}:
             - task: AzureWebAppContainer@1
               displayName: 'Deploy Single Container to App Service'
-              condition: and(succeeded(), ne('${{ parameters.serviceConnectionAppService }}', ''), ne('${{ parameters.containerRegistry }}', ''), ne('${{ parameters.imageName }}', ''))
               inputs:
                 azureSubscription: ${{ parameters.serviceConnectionAppService }}
                 appName: ${{ parameters.appName }}
