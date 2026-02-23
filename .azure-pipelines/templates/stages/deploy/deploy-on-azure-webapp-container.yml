@@ -151,6 +151,14 @@ stages:
           # SINGLE CONTAINER DEPLOYMENT
           # ============================
           - ${{ if eq(parameters.deploymentMethod, 'single-container') }}:
+            - task: Bash@3
+              displayName: 'Echo Deployment Info'
+              inputs:
+                targetType: 'inline'
+                script: |
+                  echo "Deploying to Azure Web App: ${{ parameters.appName }}"
+                  echo "serviceConnectionAppService: ${{ parameters.serviceConnectionAppService }}"
+                  echo "Container Image: ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:$(imageTag)" 
             - task: AzureWebAppContainer@1
               displayName: 'Deploy Single Container to App Service'
               inputs:
@@ -159,7 +167,7 @@ stages:
                 deployToSlotOrASE:  ${{ parameters.deployToSlotOrASE }}
                 resourceGroupName: ${{ parameters.resourceGroupName }}
                 slotName:  ${{ parameters.slotName }}
-                containers: ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:$(imageTag)
+                containers: 'ulpoc.azurecr.io/ul-test-app:$(imageTag)'
                 containerCommand: ${{ parameters.containerCommand }}                
                 # appSettings: ${{ parameters.appSettings }}
                 # configurationStrings: ${{ parameters.configurationStrings }}
