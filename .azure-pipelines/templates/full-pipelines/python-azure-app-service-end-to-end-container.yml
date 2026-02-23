@@ -257,6 +257,8 @@ stages:
 # ------------------------------------------------------------
 
 - ${{ if or(eq(variables['Build.Reason'], 'PullRequest'), and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))) }}:
+ - template: ../stages/build/python-quality-and-security-scan-container.yml
+   parameters:
       pythonVersion: ${{ parameters.pythonVersion }}
       sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
       sonarQubeServiceConnection: ${{ parameters.sonarQubeServiceConnection }}
