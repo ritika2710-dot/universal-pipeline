@@ -53,8 +53,6 @@ stages:
   jobs:
     - job: ${{ parameters.jobName }}
       displayName: ${{ parameters.jobDisplayName }}
-      variables:
-        releasedVersion: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
       condition: ${{ parameters.condition }}
       steps:
         - pwsh: |
