@@ -127,14 +127,14 @@ stages:
   - deployment: ${{ parameters.jobName }}
     displayName: ${{ parameters.jobDisplayName }}
     environment: ${{ parameters.environment }}
-    variables:
+    # variables:
     
-      ${{ if and(eq(parameters.isProdDeployment, 'true'), ne(parameters.prodImageTag, '')) }}:
-            imageTag: "${{ parameters.prodImageTag }}"
-      ${{ if ne(parameters.isProdDeployment, 'true') }}:
-            imageTag: "$[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]"
-      ${{ if and(eq(parameters.isProdDeployment, 'true'), eq(parameters.prodImageTag, '')) }}:
-            imageTag: "null"
+    #   ${{ if and(eq(parameters.isProdDeployment, 'true'), ne(parameters.prodImageTag, '')) }}:
+    #         imageTag: "${{ parameters.prodImageTag }}"
+    #   ${{ if ne(parameters.isProdDeployment, 'true') }}:
+    #         imageTag: "$[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]"
+    #   ${{ if and(eq(parameters.isProdDeployment, 'true'), eq(parameters.prodImageTag, '')) }}:
+    #         imageTag: "null"
 
     strategy:
       runOnce:
@@ -143,11 +143,32 @@ stages:
 
           - bash: |
               set -e
-              echo "Resolved imageTag = '$(imageTag)'"
-              if [ "$(imageTag)" = "null" ] || [ -z "$(imageTag)" ]; then
-                echo "ERROR: Production deployment selected but prodImageTag was not provided."
-                exit 1
+              
+              echo "isProdDeployment='${{ parameters.isProdDeployment }}' prodImageTag='${{ parameters.prodImageTag }}'"
+
+              if [ "${{ parameters.isProdDeployment }}" = "true" ]; then
+                if [ -z "${{ parameters.prodImageTag }}" ]; then
+                  echo "ERROR: Production deployment selected but 'prodImageTag' is empty."
+                  exit 1
+                fi
+                TAG="${{ parameters.prodImageTag }}"
+              else
+                TAG="$[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]"
+                if [ -z "$TAG" ]; then
+                  # optional fallback if this stage sometimes doesn't depend on ReleaseStage
+                  TAG="latest"
+                fi
               fi
+              
+              echo "Resolved imageTag='$TAG'"
+              echo "##vso[task.setvariable variable=imageTag]$TAG"
+
+
+              # echo "Resolved imageTag = '$(imageTag)'"
+              # if [ "$(imageTag)" = "null" ] || [ -z "$(imageTag)" ]; then
+              #   echo "ERROR: Production deployment selected but prodImageTag was not provided."
+              #   exit 1
+              # fi
             displayName: "Validate imageTag (must not be 'null')"
 
           # ============================
