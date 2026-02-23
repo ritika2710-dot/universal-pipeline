@@ -84,6 +84,27 @@ parameters:
     type: string
     default: ''
 
+  - name: appSettings
+    type: object
+    default: {}
+
+  - name: configurationStrings
+    type: object
+    default: {}
+  - name: siteContainersConfig
+    type: object
+    default: {}
+  - name: slotName
+    type: string
+    default: ''
+  - name: deployToSlotOrASE
+    type: boolean
+    default: false
+  - name: containerCommand
+    type: string
+    default: ''
+
+
 stages:
 - stage: ${{ parameters.stageName }}
   displayName: ${{ parameters.stageDisplayName }}
@@ -136,7 +157,14 @@ stages:
               inputs:
                 azureSubscription: ${{ parameters.serviceConnectionAppService }}
                 appName: ${{ parameters.appName }}
-                imageName: ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:${{ variables.imageTag }}
+                deployToSlotOrASE:  ${{ parameters.deployToSlotOrASE }}
+                resourceGroupName: ${{ parameters.resourceGroupName }}
+                slotName:  ${{ parameters.slotName }}
+                containers: ${{ parameters.containerRegistry }}/${{ parameters.imageName }}:${{ variables.imageTag }}
+                containerCommand: ${{ parameters.containerCommand }}                
+                appSettings: ${{ parameters.appSettings }}
+                configurationStrings: ${{ parameters.configurationStrings }}
+                siteContainersConfig: ${{ parameters.siteContainersConfig }}
 
           # ============================
           # MULTI-CONTAINER DEPLOYMENT

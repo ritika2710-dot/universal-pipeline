@@ -301,7 +301,8 @@ stages:
           azureSubscription: ${{ env.azureSubscription }}
           resourceGroupName: ${{ env.resourceGroupName }}
           appName: ${{ env.appName }}
-          appOs: ${{ env.appOs }}
+          containerRegistry: ${{ env.containerRegistry }}
+          imageName: ${{ env.imageName }}
 
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
@@ -318,7 +319,8 @@ stages:
           azureSubscription: ${{ env.azureSubscription }}
           resourceGroupName: ${{ env.resourceGroupName }}
           appName: ${{ env.appName }}
-          appOs: ${{ env.appOs }}
+          containerRegistry: ${{ env.containerRegistry }}
+          imageName: ${{ env.imageName }}
 
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
   - ${{ each env in parameters.environments }}:
@@ -335,7 +337,8 @@ stages:
           azureSubscription: ${{ env.azureSubscription }}
           resourceGroupName: ${{ env.resourceGroupName }}
           appName: ${{ env.appName }}
-          appOs: ${{ env.appOs }}
+          containerRegistry: ${{ env.containerRegistry }}
+          imageName: ${{ env.imageName }}
 
 
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
@@ -353,7 +356,8 @@ stages:
           azureSubscription: ${{ env.azureSubscription }}
           resourceGroupName: ${{ env.resourceGroupName }}
           appName: ${{ env.appName }}
-          appOs: ${{ env.appOs }}
+          containerRegistry: ${{ env.containerRegistry }}
+          imageName: ${{ env.imageName }}
 
 # ------------------------------------------------------------
 # Stage 6: Log Collection
