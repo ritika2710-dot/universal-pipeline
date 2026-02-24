@@ -291,7 +291,7 @@ stages:
       releaseBranch: ${{ parameters.releaseBranch }} 
       releaseType: ${{ parameters.releaseType }} 
       universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
-      universalPackageName: ${{ parameters.universalPackageName }}
+      universalPackageName: ${{ lower(parameters.universalPackageName) }}
       dockerfilePath: ${{ parameters.dockerfilePath }}   
       dockerfileName: ${{ parameters.dockerfileName }}
       dockerBuildContext: ${{ parameters.dockerBuildContext }} 
@@ -406,8 +406,8 @@ stages:
       jobName: 'CollectLogsJob'
       jobDisplayName: 'Collect Pipeline Logs'
       logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
-      logsPackageName: ${{ parameters.universalPackageName }}-pipeline-logs
-      packageDescription: 'Pipeline Logs for ${{ parameters.universalPackageName }}'
+      logsPackageName: ${{ lower(parameters.universalPackageName) }}-pipeline-logs
+      packageDescription: 'Pipeline Logs for ${{ lower(parameters.universalPackageName) }}'
 
 
 # # Non-main branches: log collection after last deployment stage (dev, qa, or uat)
