@@ -16,9 +16,9 @@ parameters:
     type: string
     default: 'Validate Branch Naming Convention'
 
-  - name: branchRegex
-    type: string
-    default: '^(develop|feature|bugfix|hotfix|release)/.+$'
+  # - name: branchRegex
+  #   type: string
+  #   default: '^(develop|feature|bugfix|hotfix|release)/.+$'
 
 stages:
   - stage: ${{ parameters.stageName }}

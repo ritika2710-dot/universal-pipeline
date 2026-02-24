@@ -26,6 +26,10 @@ parameters:
   type: string
   default: '3.11'
 
+- name: projectPath
+  type: string
+  default: '.'
+
 - name: requirementsFile
   type: string
   default: 'requirements.txt'
@@ -42,9 +46,7 @@ parameters:
   type: string
   default: 'Build-Drop'
 
-- name: projectPath
-  type: string
-  default: '.'
+
 
 #Containerized Application
 
