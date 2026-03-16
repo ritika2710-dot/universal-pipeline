@@ -390,7 +390,7 @@ stages:
 # ------------------------------------------------------------
 
 - ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
-  - template: ../stages/logs/windows-collect-logs.yml
+  - template: ../stages/logs/windows-collect-logs-new.yml
     parameters:
       stageName: 'CollectLogsStage'
       stageDisplayName: 'Collect & Publish Pipeline Logs'
