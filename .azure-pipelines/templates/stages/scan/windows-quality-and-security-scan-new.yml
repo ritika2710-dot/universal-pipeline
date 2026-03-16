@@ -1,0 +1,526 @@
+# stages/scan/windows-quality-and-security-scan.yml
+# ============================================================
+# DOTNET QUALITY & SECURITY ANALYSIS STAGE
+# ============================================================
+# This stage runs code quality checks and security scans.
+# It mirrors the Python pipeline's scan stage but uses .NET tools.
+# 
+# Key differences from Python:
+# - Uses dotnet-format instead of Pylint
+# - Uses SonarQube for C# analysis (same as Python)
+# - Uses Wiz for directory scanning (same as Python)
+# - No container scanning (handled separately)
+
+parameters:
+  - name: dotnetVersion
+    type: string
+    default: '9.0.x'
+
+#SonarQube Parameters
+  - name: sonarQubeServiceConnection
+    type: string
+    default: ''
+
+  - name: sonarQubeProjectKey
+    type: string
+    default: ''
+
+  - name: sonarQubeUrl
+    type: string
+    default: ''
+
+  - name: sonarQubeToken
+    type: string
+    default: ''
+
+  - name: sonarReportArtifactName
+    type: string
+    default: 'SonarQube-Reports'
+
+  - name: branchName
+    type: string
+    default: $(Build.SourceBranch)
+
+  - name: branchFilter
+    type: string
+    default: 'refs/heads/main'
+
+  - name: coverageReportPath
+    type: string
+    default: 'coverage/Cobertura.xml'
+
+  - name: testResultsPath
+    type: string
+    default: 'TestResults/test-results.trx'
+
+# Wiz Parameters
+  - name: wizClientId
+    type: string
+    default: ''
+  
+  - name: wizClientSecret
+    type: string
+    default: ''
+
+  - name: wizServiceConnection
+    type: string
+    default: ''
+
+  - name: wizScanPolicies
+    type: string
+    default: "Fail-on-Medium-Vulns, Default vulnerabilities policy"
+
+  - name: wizFailOnSeverity
+    type: string
+    default: 'Medium'
+
+  - name: wizPolicyHitsOnly
+    type: boolean
+    default: false
+    
+  - name: wizSucceedOnFailures
+    type: boolean
+    default: false
+
+  - name: runWiz
+    type: boolean
+    default: true
+
+  - name: artifactName
+    type: string
+    default: 'Build-Drop'
+
+  - name: projectPath
+    type: string
+    default: '.'
+
+stages:
+- stage: CodeQualityStage
+  displayName: "Stage - Code Quality & Security Analysis"
+  # ============================================================
+  # SCAN STAGE OVERVIEW
+  # ============================================================
+  # This stage performs comprehensive code quality and security scanning.
+  # It runs AFTER the BUILD stage completes successfully.
+  #
+  # Pipeline Flow:
+  # 1. BUILD stage → compiles, restores NuGet, runs unit tests, publishes
+  # 2. SCAN stage (this) → code quality checks, SonarQube, security scan
+  # 3. Other stages → release, deploy, logs
+  #
+  # NOTE: Building and testing happens in the BUILD stage.
+  # This SCAN stage focuses ONLY on quality analysis and security.
+  
+  variables:
+    - name: sonarReportFilenamePR
+      value: 'SonarScan-PR-$(System.PullRequest.PullRequestId).pdf'
+    - name: sonarReportFilenameBuild
+      value: 'SonarScan-Build-$(Build.BuildId).pdf'
+      
+  jobs:
+    - job: CodeQualitySecurityScan
+      displayName: 'Code Quality Analysis & Security Scan'
+      # ============================================================
+      # JOB OVERVIEW
+      # ============================================================
+      # Single job that orchestrates all scanning tasks
+      
+      steps:
+        # ============================================================
+        # SECTION 1: SETUP & PREREQUISITES
+        # ============================================================
+        # Prepare the environment for scanning
+        
+        # Step 1: Checkout source code
+        - checkout: self
+          # This fetches the repo code needed for analysis
+          # (Similar to Python: bash script clones code)
+
+        # Step 2: Download build artifacts (test results, coverage)
+        - task: DownloadPipelineArtifact@2
+          displayName: 'Download Build Artifacts from Build stage'
+          inputs:
+            artifact: ${{ parameters.artifactName }}
+            path: '$(Pipeline.Workspace)/build'
+          # Downloads test results and coverage reports from previous BUILD stage
+          # These will be published later for visibility in Azure DevOps
+          # (Python equivalent: pytest generates similar artifacts)
+
+        # Step 3: Use .NET - Specific Version
+        - task: UseDotNet@2
+          displayName: 'Use .NET ${{ parameters.dotnetVersion }}'
+          inputs:
+            packageType: 'sdk'
+            version: ${{ parameters.dotnetVersion }}
+          # Installs the specific .NET SDK version needed
+          # .NET requires this; Python stages use UsePythonVersion@0 task
+          # Similar purpose: ensure correct runtime version
+
+        # ============================================================
+        # SECTION 2: CODE QUALITY CHECKS
+        # ============================================================
+        # Run static code analysis and formatting checks
+        
+        # Step 4: Run Code Quality Check (dotnet-format)
+        - script: |
+            dotnet tool install -g dotnet-format
+            cd ${{ parameters.projectPath }}
+            dotnet format --verify-no-changes --verbosity diagnostic
+          displayName: 'Run .NET Code Quality Check (dotnet-format)'
+          continueOnError: true
+          # Checks code formatting consistency across the project
+          # This is the .NET equivalent of Python's Pylint check
+          # 
+          # Key differences:
+          # - Python uses: pylint **/*.py --exit-zero
+          # - .NET uses: dotnet format --verify-no-changes
+          # - Both report issues but don't stop the pipeline
+          # 
+          # continueOnError: true means formatting issues won't fail the stage
+          # Purpose: Get early feedback but allow deeper analysis to continue
+
+        # ============================================================
+        # SECTION 3: PUBLISH TEST & COVERAGE RESULTS
+        # ============================================================
+        # Make test results visible in Azure DevOps UI
+        
+        # Step 5: Publish Test Results
+        - task: PublishTestResults@2
+          inputs:
+            testResultsFormat: 'VSTest'
+            testResultsFiles: '**/*.trx'
+            failTaskOnFailedTests: false
+          condition: succeededOrFailed()
+          displayName: 'Publish Test Results to Azure DevOps'
+          # Publishes unit test results from BUILD stage
+          # .trx = VSTest format (Visual Studio Test Results)
+          # failTaskOnFailedTests: false means we don't fail the SCAN stage if tests failed
+          # (Tests were already run in BUILD stage - this is just reporting)
+          # 
+          # Python equivalent: PublishTestResults with 'JUnit' format from pytest
+
+        # Step 6: Publish Code Coverage Results
+        - task: PublishCodeCoverageResults@2
+          displayName: "Publish Coverage Report to Azure DevOps"
+          condition: succeededOrFailed()
+          inputs:
+            codeCoverageTool: Cobertura
+            summaryFileLocation: ${{ parameters.coverageReportPath }}
+          # Publishes code coverage metrics to Azure DevOps
+          # Cobertura is an industry-standard coverage format
+          # Shows which lines of code are tested (coverage %)
+          # 
+          # Python equivalent: Coverage reports in XML format
+
+        # ============================================================
+        # SECTION 4: SONARQUBE ANALYSIS (MAIN QUALITY GATE)
+        # ============================================================
+        # Comprehensive static code analysis using SonarQube
+        # This is the PRIMARY quality gate for the pipeline
+        
+        # Step 7: SonarQube Prepare
+        - task: SonarQubePrepare@7
+          displayName: Prepare SonarQube Analysis
+          inputs:
+            SonarQube: ${{ parameters.sonarQubeServiceConnection }}
+            scannerMode: 'CLI'
+            configMode: 'manual'
+            cliProjectKey: ${{ parameters.sonarQubeProjectKey }}
+            extraProperties: |
+              sonar.projectVersion=1.0
+              sonar.dotnet.version=${{ parameters.dotnetVersion }}
+              sonar.sources=${{ parameters.projectPath }}
+              sonar.language=cs
+              sonar.sourceEncoding=UTF-8
+              sonar.exclusions=**/obj/**,**/bin/**,**/TestResults/**
+              sonar.cs.opencover.reportsPaths=${{ parameters.coverageReportPath }}
+          # Configures SonarQube scanner before analysis
+          # 
+          # Key settings:
+          # - sonar.language=cs → C# language configuration
+          # - sonar.sources → where source code is located
+          # - sonar.exclusions → folders to SKIP (build artifacts, tests)
+          # - sonar.cs.opencover.reportsPaths → uses coverage data
+          # 
+          # Python equivalent: SonarQubePrepare with sonar.language=py
+
+        # Step 8: SonarQube Analyze
+        - task: SonarQubeAnalyze@7
+          displayName: Run SonarQube Analysis
+          # Performs the actual code analysis
+          # Scans for:
+          # - Code smells (bad practices)
+          # - Bugs (potential defects)
+          # - Vulnerabilities (security issues)
+          # - Technical debt (what needs refactoring)
+          # 
+          # This runs the core analysis engine
+
+        # Step 9: Publish SonarQube Quality Gate Results
+        - task: SonarQubePublish@7
+          inputs:
+            pollingTimeoutSec: '300'
+          displayName: Publish SonarQube Quality Gate
+          # Publishes results and applies quality gate rules
+          # Quality Gate = pass/fail criteria
+          # Example: "Must have <5% Technical Debt"
+          # 
+          # If Quality Gate FAILS:
+          # - Pipeline will mark this task as FAILED
+          # - Stage will be marked as FAILED
+          # - This is the actual enforcement point
+
+        # ============================================================
+        # SECTION 5: GENERATE DETAILED REPORTS
+        # ============================================================
+        # Create PDF reports of issues for developers to review
+        
+        # Step 10: Generate SonarQube PR Report
+        - powershell: |
+            # This script generates a PDF report for Pull Requests
+            # PowerShell runs the embedded Python script
+            
+            echo "Downloading SonarQube PR issues..."
+            python --version
+            pip --version
+            pip install openpyxl requests reportlab
+            echo "Pull Request ID: $env:SYSTEM_PULLREQUEST_PULLREQUESTID"
+            
+            # Python script begins here (embedded in PowerShell)
+            python3 <<'PYTHON_EOF'
+            # This Python code:
+            # 1. Fetches SonarQube issues for the PR
+            # 2. Extracts: Severity, Type, Message, File, Line, Rule, Effort, Created
+            # 3. Creates a formatted PDF table
+            # 4. Saves as PDF report that developers can download
+            
+            import json
+            import requests
+            import os
+            from datetime import datetime
+            from reportlab.lib import colors
+            from reportlab.lib.pagesizes import A4, landscape
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+            # Inputs
+            sonar_host = "${{ parameters.sonarQubeUrl }}"
+            token = "${{ parameters.sonarQubeToken }}"
+            project = "${{ parameters.sonarQubeProjectKey }}"
+            pr_id = os.getenv('SYSTEM_PULLREQUEST_PULLREQUESTID')
+            print(f"Pull Request ID: {pr_id}")
+
+            # Fetch data from SonarQube
+            print(f"Fetching issues for PR {pr_id}...")
+            url = f"{sonar_host}/api/issues/search?pullRequest={pr_id}&componentKeys={project}&types=BUG,VULNERABILITY,CODE_SMELL&ps=500"
+            print(f"Requesting: {url}")
+
+            resp = requests.get(url, auth=(token, ''))
+            data = resp.json()
+
+            # Prepare issue table
+            headers = ["Severity", "Type", "Message", "File", "Line", "Rule", "Effort", "Created"]
+            components = {c["key"]: c for c in data.get("components", [])}
+
+            rows = []
+            for issue in data.get("issues", []):
+                file_key = issue.get("component", "")
+                file_path = components.get(file_key, {}).get("path", "Unknown")
+                rows.append([
+                    issue.get("severity", ""),
+                    issue.get("type", ""),
+                    issue.get("message", ""),
+                    file_path,
+                    issue.get("line", ""),
+                    issue.get("rule", ""),
+                    issue.get("effort", ""),
+                    issue.get("creationDate", ""),
+                ])
+
+            # Fallback if no data
+            if not rows:
+                rows.append(["-", "-", "No issues found for this PR", "-", "-", "-", "-", "-"])
+
+            # Create PDF
+            filename = os.getenv('sonarReportFilenamePR', 'SonarScan-PR.pdf')
+            print(f"Saving report as {filename}...")
+
+            doc = SimpleDocTemplate(filename, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20)
+            elements = []
+            styles = getSampleStyleSheet()
+
+            # Title
+            title = Paragraph(f"<b>SonarQube Issues Report - PR #{pr_id}</b>", styles['Title'])
+            elements.append(title)
+            elements.append(Spacer(1, 12))
+
+            # Page width
+            page_width, page_height = landscape(A4)
+            available_width = page_width - doc.leftMargin - doc.rightMargin
+
+            # Column widths (rough proportional widths)
+            col_widths = [
+                available_width * 0.08,  # Severity
+                available_width * 0.08,  # Type
+                available_width * 0.38,  # Message (largest)
+                available_width * 0.15,  # File
+                available_width * 0.05,  # Line
+                available_width * 0.10,  # Rule
+                available_width * 0.06,  # Effort
+                available_width * 0.10,  # Created
+            ]
+
+            # Wrap rows
+            wrap_style = ParagraphStyle(name='wrap', wordWrap='CJK', fontSize=8)
+            wrapped_rows = []
+            for row in rows:
+                wrapped_row = [Paragraph(str(cell), wrap_style) for cell in row]
+                wrapped_rows.append(wrapped_row)
+
+            # Wrap headers
+            header_style = ParagraphStyle(name='header', fontSize=10, textColor=colors.white, alignment=1)  # center
+            wrapped_headers = [Paragraph(str(h), header_style) for h in headers]
+
+            table_data = [wrapped_headers] + wrapped_rows
+
+            # Create table
+            table = Table(table_data, colWidths=col_widths, repeatRows=1)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#003366")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+
+            elements.append(table)
+            doc.build(elements)
+
+            print(f"PDF report generated: {filename}")
+
+            PYTHON_EOF
+
+          displayName: 'Generate SonarQube PDF Report for PR Check'
+          condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+          env:
+            sonarReportFilenamePR: $(sonarReportFilenamePR)
+          # Condition: Only runs for PULL REQUESTS (not on branch commits)
+          # This gives PR reviewers a detailed report of issues found
+
+        # Step 11: Publish SonarQube PR issues Report PDF
+        - task: PublishPipelineArtifact@1
+          displayName: 'Publish SonarQube Scan PR issues Report'
+          inputs:
+            targetPath: '$(sonarReportFilenamePR)'
+            artifact: ${{ parameters.sonarReportArtifactName }}
+          condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+          # Publishes the PDF report so developers can download it
+          # Available in: Build → Artifacts → SonarQube-Reports
+
+        # ============================================================
+        # SECTION 6: BRANCH REPORTS (non-PR builds)
+        # ============================================================
+        # Generate reports for main branch commits and develop branch
+        
+        # Step 12: Get SonarQube Security Scan Report - PDF
+        - task: Bash@3
+          displayName: Download SonarQube PDF Report for Branches
+          condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+          inputs:
+            targetType: inline
+            script: |
+              set -e
+              # This script downloads SonarQube reports for branch builds
+              # (not for PRs - PRs already got their own report above)
+              
+              AUTH_HEADER=$(echo -n "${SONAR_TOKEN}:" | base64)
+              branchName=$(echo "$branchName" | sed 's#refs/heads/##')
+              encodedBranchName=$(echo "$branchName" | sed 's/\//%2F/g')
+
+              generate_url="${SONARQUBE_URL}/api/security_reports/download?project=${SONARQUBE_PROJECT_KEY}&branch=${encodedBranchName}"
+
+              curl -v -f -L \
+                -H "Authorization: Basic ${AUTH_HEADER}" \
+                -o "$(sonarReportFilenameBuild)" \
+                "$generate_url"
+
+              echo "Download complete. File details:"
+               ls -lh "$(sonarReportFilenameBuild)"
+          env:
+            SONAR_TOKEN: ${{ parameters.sonarQubeToken }}
+            SONARQUBE_URL: ${{ parameters.sonarQubeUrl }}
+            SONARQUBE_PROJECT_KEY: ${{ parameters.sonarQubeProjectKey }}
+            branchName: ${{ parameters.branchName }}
+          # Downloads SonarQube report specific to this branch (main, develop, etc.)
+
+        # Step 13: Publish SonarQube Security Scan Report
+        - task: PublishPipelineArtifact@1
+          displayName: 'Publish SonarQube Build Report'
+          inputs:
+            targetPath: '$(sonarReportFilenameBuild)'
+            artifact: ${{ parameters.sonarReportArtifactName }}
+          condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+          # Publishes branch report as artifact
+
+        # ============================================================
+        # SECTION 7: REGULATORY REPORTS (main branch only)
+        # ============================================================
+        # Advanced compliance and regulatory reports
+        
+        # Step 14: Get SonarQube Regulatory Report
+        - script: |
+            echo "Downloading SonarQube Regulatory Report..."
+            curl -sSf -u "${SONARQUBE_TOKEN}:" ^
+              -o regulatory-report.zip ^
+              "${SONARQUBE_URL}/api/regulatory_reports/download?project=${SONARQUBE_PROJECT_KEY}&branch=main"
+          displayName: 'Download SonarQube Regulatory Report'
+          env:
+            SONARQUBE_TOKEN: ${{ parameters.sonarQubeToken }}
+            SONARQUBE_URL: ${{ parameters.sonarQubeUrl }}
+            SONARQUBE_PROJECT_KEY: ${{ parameters.sonarQubeProjectKey }}
+          condition: and(succeeded(), eq(variables['Build.SourceBranch'], '${{ parameters.branchFilter }}'), ne(variables['Build.Reason'], 'PullRequest'))
+          # Only runs on main branch commits (not PRs, not develop branch)
+          # Downloads compliance/regulatory reports if configured in SonarQube
+
+        # Step 15: Publish SonarQube Regulatory Report
+        - task: PublishPipelineArtifact@1
+          displayName: 'Publish SonarQube Regulatory Report'
+          inputs:
+            targetPath: 'regulatory-report.zip'
+            artifact: ${{ parameters.sonarReportArtifactName }}
+            publishLocation: 'pipeline'
+          condition: and(succeeded(), eq(variables['Build.SourceBranch'], '${{ parameters.branchFilter }}'), ne(variables['Build.Reason'], 'PullRequest'))
+          # Publishes the regulatory report as artifact
+
+        # ============================================================
+        # SECTION 8: SECURITY SCANNING (Wiz)
+        # ============================================================
+        # Third-party vulnerability scanner (if enabled)
+        
+        # Step 16: Wiz Directory Scan (conditionally included)
+        - ${{ if eq(parameters.runWiz, true) }}:
+          # This entire section only runs if runWiz: true
+          - task: wiz@0
+            displayName: Run Wiz Directory Scan
+            inputs:
+              command: 'dir'  # Scan directory for vulnerabilities
+              clientid: ${{ parameters.wizClientId }}
+              secret: ${{ parameters.wizClientSecret }}
+              failOnSeverity: ${{ parameters.wizFailOnSeverity }}  # e.g., 'Medium'
+              policyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}  # Check policy violations
+              succeedOnFailures: ${{ parameters.wizSucceedOnFailures }}  # Don't fail on vulns
+              scanTags: 'directory'
+              path: '${{ parameters.projectPath }}'  # What to scan
+              scanPolicies: ${{ parameters.wizScanPolicies }}  # Which policies to check
+              useServiceConnection: true
+              serviceConnectionId: ${{ parameters.wizServiceConnection }}
+              
+            # Wiz = Additional security vulnerability scanner
+            # Finds: dependencies with known vulnerabilities
+            # Complements SonarQube's code quality analysis
+            # 
+            # Python equivalent: Same Wiz scanning (language-agnostic)
