@@ -240,7 +240,6 @@ stages:
   - template: ../stages/build/windows-dotnet-build-and-test-new.yml
     parameters:
       dotnetVersion: ${{ parameters.dotnetVersion }}
-      buildConfiguration: ${{ parameters.buildConfiguration }}
       projectPath: ${{ parameters.projectPath }}
       testResultsPath: ${{ parameters.testResultsPath }}
       coverageReportPath: ${{ parameters.coverageReportPath }}
