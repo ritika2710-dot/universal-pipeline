@@ -1,0 +1,284 @@
+# new and lateest
+
+parameters:
+  - name: stageName
+    type: string
+    default: 'ReleaseStage'
+
+  - name: displayName
+    type: string
+    default: 'Stage - Release Tag and Artifact'
+
+  - name: releaseType
+    type: string
+    default: 'patch'
+
+  - name: releaseBranch
+    type: string
+    default: 'main'
+
+  - name: releaseTagBranch
+    type: string
+    default: ''
+
+  - name: universalFeedNameApp
+    type: string
+    default: ''
+
+  - name: universalPackageName
+    type: string
+    default: 'App'
+  
+  - name: packageDescription
+    type: string
+    default: 'Application Artifact'
+
+  - name: artifactName
+    type: string
+    default: 'Build-Drop'
+
+  - name: gitUserName
+    type: string
+    default: 'Azure DevOps Build Service'
+
+  - name: gitUserEmail
+    type: string
+    default: 'ado-build-service-bot@unilever.com'
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.displayName }}
+    jobs:
+      - job: ReleaseJob
+        displayName: "Tag Release and Artifact Publish"
+        steps:
+          # Checkout repo with credentials for git tag operations
+          - checkout: self
+            persistCredentials: true
+            fetchTags: true
+
+          # Calculate next semantic version: fetch all tags, find latest, bump based on release type
+          - powershell: |
+              $ErrorActionPreference = "Stop"
+              Write-Host "Getting the latest valid semantic version tag..."
+
+              # Fetch all tags from remote
+              & git fetch --tags 2>&1 | Write-Host
+
+              # Find latest semver tag (v#.#.#) with PATCH < 1000 to filter artifacts
+              $tags = & git tag --sort=-v:refname | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' }
+              $latestTag = ""
+              
+              foreach ($tag in $tags) {
+                $version = $tag -replace '^v', ''
+                $parts = $version -split '\.'
+                $patch = [int]$parts[2]
+                
+                if ($patch -lt 1000) {
+                  $latestTag = $tag
+                  break
+                }
+              }
+
+              Write-Host "Latest valid tag: $latestTag"
+
+              # Initialize version or extract from latest tag
+              if ([string]::IsNullOrWhiteSpace($latestTag)) {
+                $major = 0
+                $minor = 0
+                $patch = 0
+              } else {
+                $version = $latestTag -replace '^v', ''
+                $parts = $version -split '\.'
+                $major = [int]$parts[0]
+                $minor = [int]$parts[1]
+                $patch = [int]$parts[2]
+              }
+
+              Write-Host "Current version: $major.$minor.$patch"
+
+              # Apply version bump based on release type (default: patch)
+              $releaseType = "${{ parameters.releaseType }}"
+              if ([string]::IsNullOrWhiteSpace($releaseType)) {
+                $releaseType = "patch"
+              }
+              Write-Host "Version bump type: $releaseType"
+
+              switch ($releaseType.ToLower()) {
+                "major" {
+                  $major++
+                  $minor = 0
+                  $patch = 0
+                }
+                "minor" {
+                  $minor++
+                  $patch = 0
+                }
+                "patch" {
+                  $patch++
+                }
+                default {
+                  Write-Error "Invalid RELEASE_TYPE: $releaseType"
+                  exit 1
+                }
+              }
+
+              $newVersion = "$major.$minor.$patch"
+              $newTag = "v$newVersion"
+
+              Write-Host "New tag: $newTag"
+              Write-Host "New version: $newVersion"
+
+              # Export as pipeline variables for downstream steps
+              Write-Host "##vso[task.setvariable variable=new_tag;isOutput=true]$newTag"
+              Write-Host "##vso[task.setvariable variable=new_version;isOutput=true]$newVersion"
+            name: calversion
+            displayName: "Auto-calculate New Semantic Version"
+
+          # Configure git user identity, fetch release branch, create and push annotated tag
+          - powershell: |
+              $ErrorActionPreference = "Stop"
+              Write-Host "Configuring Git user..."
+              & git config user.name "${{ parameters.gitUserName }}"
+              & git config user.email "${{ parameters.gitUserEmail }}"
+
+              $targetBranch = "${{ parameters.releaseTagBranch }}"
+              if ([string]::IsNullOrWhiteSpace($targetBranch)) {
+                $targetBranch = "${{ parameters.releaseBranch }}"
+              }
+
+              Write-Host "Fetching release branch: $targetBranch"
+              & git fetch origin "$targetBranch" 2>&1 | Write-Host
+              & git checkout "$targetBranch" 2>&1 | Write-Host
+              & git pull origin "$targetBranch" 2>&1 | Write-Host
+
+              Write-Host "Fetching tags..."
+              & git fetch --tags 2>&1 | Write-Host
+
+              $newTag = "$(calversion.new_tag)"
+              Write-Host "Creating annotated tag: $newTag"
+              & git tag -a "$newTag" -m "Release $newTag" 2>&1 | Write-Host
+
+              Write-Host "Pushing tag to origin..."
+              & git push origin "$newTag" 2>&1 | Write-Host
+            displayName: "Create and Push New Git Tag in ADO Repo"
+
+          # Download build artifact from BUILD stage (published with PublishPipelineArtifact@1)
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Build Artifact (pipeline artifact)'
+            inputs:
+              artifact: '${{ parameters.artifactName }}'
+              path: '$(Pipeline.Workspace)/build'
+
+          # Stage artifact for Universal Package: find built ZIP in artifact location, copy to staging dir
+          - powershell: |
+              $ErrorActionPreference = "Stop"
+              $publishDir = "$(Build.ArtifactStagingDirectory)\upack"
+
+              if (Test-Path $publishDir) {
+                Remove-Item -Path $publishDir -Recurse -Force
+              }
+              New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
+
+              Write-Host "Current location: $(Get-Location)"
+              Write-Host "Build.ArtifactStagingDirectory: $(Build.ArtifactStagingDirectory)"
+              Write-Host "Pipeline.Workspace: $(Pipeline.Workspace)"
+              Write-Host "Build.SourceVersion: $(Build.SourceVersion)"
+
+              # Search candidate locations for built artifact ZIP (mimics bash fallback logic)
+              $candidates = @(
+                "$(Pipeline.Workspace)\build\Build-Drop",
+                "$(Pipeline.Workspace)\build",
+                "$(Pipeline.Workspace)\s",
+                "$(System.DefaultWorkingDirectory)",
+                "$(Pipeline.Workspace)"
+              )
+
+              $srcZip = $null
+              $sourceVersion = "$(Build.SourceVersion)"
+
+              foreach ($dir in $candidates) {
+                $candidate = Join-Path $dir "$sourceVersion.zip"
+                if (Test-Path -Path $candidate -PathType Leaf) {
+                  $srcZip = $candidate
+                  Write-Host "Found exact source-version ZIP: $srcZip"
+                  break
+                }
+              }
+
+              if ($null -eq $srcZip) {
+                foreach ($dir in $candidates) {
+                  if (-not (Test-Path -Path $dir -PathType Container)) {
+                    continue
+                  }
+                  $shaZips = Get-ChildItem -Path $dir -Filter "*.zip" -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match '^[0-9a-f]{7,40}\.zip$' }
+
+                  if ($shaZips) {
+                    $srcZip = $shaZips[0].FullName
+                    Write-Host "Found SHA-named ZIP: $srcZip"
+                    break
+                  }
+                }
+              }
+
+              if ($null -eq $srcZip) {
+                foreach ($dir in $candidates) {
+                  if (-not (Test-Path -Path $dir -PathType Container)) {
+                    continue
+                  }
+                  $anyZip = Get-ChildItem -Path $dir -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+                  if ($anyZip) {
+                    $srcZip = $anyZip.FullName
+                    Write-Host "Falling back to first ZIP found: $srcZip"
+                    break
+                  }
+                }
+              }
+
+              if ($null -eq $srcZip) {
+                Write-Host "Could not find a ZIP in any candidate locations. Listing for debugging:"
+                foreach ($dir in $candidates) {
+                  if (Test-Path -Path $dir) {
+                    Write-Host "Contents of $dir`:"
+                    Get-ChildItem -Path $dir -Recurse | Select-Object -First 20 | Format-List FullName
+                  } else {
+                    Write-Host "Directory not found: $dir"
+                  }
+                }
+                exit 1
+              }
+
+              Copy-Item -Path $srcZip -Destination $publishDir -Force
+              $zipName = Split-Path -Leaf $srcZip
+              Write-Host "##vso[task.setvariable variable=stagedZip;isOutput=true]$zipName"
+
+              $readmeLines = @(
+                "commit=$(Build.SourceVersion)",
+                "tag=$(calversion.new_tag)"
+              )
+              $readmePath = Join-Path $publishDir "readme-ci-cd.txt"
+              $readmeLines | Set-Content -Path $readmePath -Encoding UTF8
+
+              Write-Host "Staged artifact for packaging: $zipName"
+            displayName: 'Stage contents for Universal Package'
+
+          # Publish staged artifact to Universal Feed with new semantic version tag (only when feed info supplied)
+          - task: UniversalPackages@0
+            displayName: 'Publish Universal Package with New Version Tag'
+            condition: and(succeeded(), ne('${{ parameters.universalFeedNameApp }}',''), ne('${{ parameters.universalPackageName }}',''))
+            inputs:
+              command: 'publish'
+              publishDirectory: '$(Build.ArtifactStagingDirectory)/upack'
+              feedsToUse: 'internal'
+              vstsFeedPublish: '${{ parameters.universalFeedNameApp }}'
+              vstsFeedPackagePublish: '${{ lower(parameters.universalPackageName) }}'
+              versionOption: 'custom'
+              versionPublish: '$(calversion.new_version)'
+              packagePublishDescription: '${{ parameters.packageDescription }}'
+
+          - powershell: |
+              Write-Host "Universal package feed/name not provided. Skipping publish step."
+              Write-Host "Set universalFeedNameApp and universalPackageName to enable publishing."
+            condition: or(eq('${{ parameters.universalFeedNameApp }}',''), eq('${{ parameters.universalPackageName }}',''))
+            displayName: 'Skip Universal Package Publish'
