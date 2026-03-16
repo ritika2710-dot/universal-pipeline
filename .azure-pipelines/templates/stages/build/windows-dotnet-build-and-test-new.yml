@@ -9,7 +9,7 @@ parameters:
 
   - name: projectPath
     type: string
-    default: '.'
+    default: 'SampleBot.csproj'
     # Path to the .NET project root (.csproj or .sln location)
 
   - name: solutionFile
