@@ -252,7 +252,7 @@ stages:
 # ------------------------------------------------------------
 
 - ${{ if or(eq(variables['Build.Reason'], 'PullRequest'), and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))) }}:
-  - template: ../stages/scan/windows-quality-and-security-scan.yml
+  - template: ../stages/scan/windows-quality-and-security-scan-new.yml
     parameters:
       dotnetVersion: ${{ parameters.dotnetVersion }}
       sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
