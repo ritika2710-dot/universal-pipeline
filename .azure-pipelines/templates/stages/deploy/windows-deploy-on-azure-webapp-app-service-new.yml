@@ -1,0 +1,201 @@
+# templates/stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+# Deploys .NET application to Azure App Service (Web App or Function App) across environments
+# Downloads artifact from Build or release version from Universal Feed, then deploys based on appType
+
+parameters:
+  - name: stageName
+    type: string
+    default: 'Deploy'
+
+  - name: stageDisplayName
+    type: string
+    default: 'Deploy to Azure App Service'
+
+  - name: dependsOn
+    type: string
+    default: 'ReleaseStage'
+
+  - name: stageDependsOnRelease
+    type: boolean
+    default: false
+
+  - name: jobName
+    type: string
+    default: 'DeployAppService'
+
+  - name: jobDisplayName
+    type: string
+    default: 'Deploy Azure App Service'
+
+  - name: environment
+    type: string
+    default: ''
+
+  - name: azureSubscription
+    type: string
+    default: ''
+
+  - name: resourceGroupName
+    type: string
+    default: ''
+
+  - name: appName
+    type: string
+    default: ''
+
+  - name: appType
+    type: string
+    default: 'webApp'  # webApp | functionApp
+
+  - name: artifactName
+    type: string
+    default: 'Build-Drop'
+
+  - name: packagePath
+    type: string
+    default: '$(Pipeline.Workspace)\Build-Drop\$(Build.SourceVersion).zip'
+
+  - name: universalFeedNameApp
+    type: string
+    default: ''
+
+  - name: universalPackageName
+    type: string
+    default: ''
+
+  - name: universalPackageVersion
+    type: string
+    default: ''
+
+  - name: runtimeStack
+    type: string
+    default: 'DOTNETCORE|8.0'
+
+  - name: startUpCommand
+    type: string
+    default: ''
+
+  - name: appSettings
+    type: string
+    default: ''
+
+  - name: configurationStrings
+    type: string
+    default: ''
+
+  - name: deployToSlotOrASE
+    type: boolean
+    default: false
+
+  - name: slotName
+    type: string
+    default: ''
+
+  - name: customWebConfig
+    type: string
+    default: ''
+
+  - name: deploymentMethod
+    type: string
+    default: 'auto'
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: '${{ parameters.stageDisplayName }}'
+    ${{ if eq(parameters.stageDependsOnRelease, true) }}:
+      dependsOn:
+        - ReleaseStage
+        - ${{ parameters.dependsOn }}
+    ${{ if eq(parameters.stageDependsOnRelease, false) }}:
+      dependsOn: ${{ parameters.dependsOn }}
+    jobs:
+      - deployment: ${{ parameters.jobName }}
+        displayName: '${{ parameters.jobDisplayName }}'
+        environment: '${{ parameters.environment }}'
+        variables:
+          # Capture version from ReleaseStage output for multi-env deployment chaining
+          - name: universalPackageVersion
+            value: $[ stageDependencies.ReleaseStage.ReleaseJob.outputs['calversion.new_version'] ]
+          # Set appType as variable for conditional task execution
+          - name: appType
+            value: ${{ parameters.appType }}
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Set default package path (points to BUILD stage artifact or can be overridden)
+                - powershell: |
+                    Write-Host "Setting default package path for deployment"
+                    Write-Host "##vso[task.setvariable variable=downloadedPackagePath]${{ parameters.packagePath }}"
+                  displayName: 'Set default package path'
+
+                # For production deployments: allow parameter override or use ReleaseStage output version
+                - powershell: |
+                    $paramVersion = "${{ parameters.universalPackageVersion }}"
+                    if (-not [string]::IsNullOrWhiteSpace($paramVersion)) {
+                      Write-Host "Overriding universalPackageVersion with template parameter: $paramVersion"
+                      Write-Host "##vso[task.setvariable variable=universalPackageVersion]$paramVersion"
+                    } else {
+                      Write-Host "Using runtime ReleaseStage output for universalPackageVersion: $(universalPackageVersion)"
+                    }
+                  displayName: 'Determine Universal Package Version'
+
+                # Download release package from Universal Feed (skips when feed not provided)
+                - task: DownloadPackage@1
+                  displayName: 'Download Universal Package from feed'
+                  condition: and(succeeded(), ne('${{ parameters.universalFeedNameApp }}',''), ne('${{ parameters.universalPackageName }}',''))
+                  inputs:
+                    packageType: 'upack'
+                    feed: '${{ parameters.universalFeedNameApp }}'
+                    definition: '${{ lower(parameters.universalPackageName) }}'
+                    version: '$(universalPackageVersion)'
+                    downloadPath: '$(Pipeline.Workspace)\upack'
+
+                # Resolve downloaded package path: find ZIP or use folder when package was pulled from feed
+                - powershell: |
+                    $packageDir = "$(Pipeline.Workspace)\upack"
+                    if (-not (Test-Path $packageDir)) {
+                      Write-Host "Universal package directory not found; keeping default artifact path."
+                      return
+                    }
+
+                    Write-Host "Searching for package in: $packageDir"
+                    $zipFile = Get-ChildItem -Path $packageDir -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+                    
+                    if ($zipFile) {
+                      $resolved = $zipFile.FullName
+                      Write-Host "Found package ZIP: $resolved"
+                    } else {
+                      $resolved = $packageDir
+                      Write-Host "No ZIP found; using folder path: $resolved"
+                    }
+
+                    Write-Host "##vso[task.setvariable variable=downloadedPackagePath]$resolved"
+                  condition: and(succeeded(), ne('${{ parameters.universalFeedNameApp }}',''), ne('${{ parameters.universalPackageName }}',''))
+                  displayName: 'Resolve downloaded package path'
+
+                # For non-prod deployments: download artifact from current pipeline BUILD stage
+                - download: current
+                  artifact: ${{ parameters.artifactName }}
+                  displayName: 'Download build artifact'
+
+                # =====================================================
+                # Deploy App Service (Web App or Function App via AzureWebApp@1)
+                # =====================================================
+                - task: AzureWebApp@1
+                  displayName: 'Deploy Azure App Service'
+                  inputs:
+                    azureSubscription: ${{ parameters.azureSubscription }}
+                    appType: ${{ parameters.appType }}
+                    appName: ${{ parameters.appName }}
+                    package: '$(downloadedPackagePath)'
+                    runtimeStack: ${{ parameters.runtimeStack }}
+                    startUpCommand: ${{ parameters.startUpCommand }}
+                    appSettings: ${{ parameters.appSettings }}
+                    configurationStrings: ${{ parameters.configurationStrings }}
+                    deployToSlotOrASE: ${{ parameters.deployToSlotOrASE }}
+                    resourceGroupName: ${{ parameters.resourceGroupName }}
+                    slotName: ${{ parameters.slotName }}
+                    customWebConfig: ${{ parameters.customWebConfig }}
+                    deploymentMethod: ${{ parameters.deploymentMethod }}
