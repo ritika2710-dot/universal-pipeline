@@ -229,7 +229,7 @@ stages:
             extraProperties: |
               sonar.projectVersion=1.0
               sonar.dotnet.version=${{ parameters.dotnetVersion }}
-              sonar.sources=.
+              sonar.sources=${{ parameters.projectPath }}
               sonar.language=cs
               sonar.sourceEncoding=UTF-8
               sonar.exclusions=**/obj/**,**/bin/**,**/TestResults/**
