@@ -74,7 +74,7 @@ stages:
             displayName: 'Restore NuGet packages'
             inputs:
               command: 'restore'
-              projects: '${{ parameters.projectPath }}\${{ parameters.solutionFile }}'
+              projects: '${{ parameters.projectPath }}'
 
           # Set test and coverage filenames as pipeline variables
           - powershell: |
