@@ -237,7 +237,7 @@ stages:
 # ------------------------------------------------------------
 
 - ${{ if or(eq(variables['Build.Reason'], 'PullRequest'), and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))) }}:
-  - template: ../stages/build/windows-dotnet-build-and-test.yml
+  - template: ../stages/build/windows-dotnet-build-and-test-new.yml
     parameters:
       dotnetVersion: ${{ parameters.dotnetVersion }}
       buildConfiguration: ${{ parameters.buildConfiguration }}
