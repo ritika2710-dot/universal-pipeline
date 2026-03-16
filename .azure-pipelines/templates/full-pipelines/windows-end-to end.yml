@@ -1,0 +1,402 @@
+# Full End-to-End Dotnet Pipeline 
+# Path: .azure-pipelines/templates/full-pipelines/dotnet-azure-functions-end-to-end.yml
+
+parameters:
+
+# Branch Name Validation
+
+- name: stageName
+  type: string
+  default: 'EnforceBranchNamingStage'
+
+- name: displayName
+  type: string
+  default: 'Stage - Enforce Branch Naming (PRs Only)'
+
+- name: jobName
+  type: string
+  default: 'EnforceBranchNaming'
+
+- name: jobDisplayName
+  type: string
+  default: 'Validate Branch Naming Convention'
+
+# Build Parameters
+
+- name: dotnetVersion
+  type: string
+  default: ''
+
+- name: buildConfiguration
+  type: string
+  default: 'Release'
+
+- name: projectPath
+  type: string
+  default: 'SampleBot.csproj'
+
+- name: testResultsPath
+  type: string
+  default: 'test-results/test-results.trx'
+
+- name: coverageReportPath
+  type: string
+  default: 'coverage/coverage.xml'
+
+- name: archiveFileName
+  type: string
+  default: '$(Build.ArtifactStagingDirectory)/$(Build.SourceVersion).zip'
+
+- name: artifactName
+  type: string
+  default: 'Build-Drop'
+
+# Containerized Application
+
+- name: Dockerfile
+  type: string
+  default: '**/Dockerfile'
+
+- name: dockerBuildContext
+  type: string
+  default: '.'
+
+- name: dockerRepository
+  type: string
+  default: ''
+
+- name: dockerTags
+  type: string
+  default: 'latest'
+
+# SonarQube parameters
+- name: sonarReportArtifactName
+  type: string
+  default: 'SonarQube-Reports'
+
+- name: sonarQubeServiceConnection
+  type: string
+  default: ''
+
+- name: sonarQubeProjectKey
+  type: string
+  default: ''
+
+- name: sonarQubeUrl
+  type: string
+  default: ''
+
+- name: sonarQubeToken
+  type: string
+  default: ''
+  
+- name: branchFilter
+  type: string
+  default: 'refs/heads/main'
+
+# Wiz parameters
+- name: wizClientId
+  type: string
+  default: ''
+  
+- name: wizClientSecret
+  type: string
+  default: ''
+
+- name: wizServiceConnection
+  type: string
+  default: ''
+
+- name: wizScanPolicies
+  type: string
+  default: "Fail-on-Medium-Vulns, Default vulnerabilities policy"
+
+- name: wizFailOnSeverity
+  type: string
+  default: 'Medium'
+
+- name: wizPolicyHitsOnly
+  type: boolean
+  default: false
+    
+- name: wizSucceedOnFailures
+  type: boolean
+  default: false
+
+- name: wizContainerSucceedOnFailures
+  type: boolean
+  default: false
+  
+- name: wizContainerimage
+  type: string
+  default: ''
+  
+- name: wizContainerpolicyHitsOnly
+  type: boolean
+  default: true
+
+- name: wizContainerfileHashesScan
+  type: boolean
+  default: true
+
+- name: runWiz
+  type: boolean
+  default: true
+
+# Release Tag & Artifact
+- name: releasedisplayName
+  type: string
+  default: 'Stage - Release Tag and Artifact'
+
+- name: releaseBranch
+  type: string
+  default: 'develop'
+
+- name: releaseTagBranch
+  type: string
+  default: ''
+
+- name: releaseType
+  type: string
+  default: 'patch'
+
+- name: universalFeedNameApp
+  type: string
+  default: ''
+
+- name: universalPackageName
+  type: string
+  default: 'App'
+
+- name: packageDescription
+  type: string
+  default: 'Application Artifact'
+
+- name: gitUserName
+  type: string
+  default: 'Azure DevOps Build Service'
+
+- name: gitUserEmail
+  type: string
+  default: 'ado-build-service-bot@unilever.com'
+
+# Deployment (Azure Function App specific)
+- name: isProdDeployment
+  type: string 
+  default: 'false'
+
+- name: azureSubscriptionServiceConnection
+  type: string
+  default: ''
+
+- name: functionAppName
+  type: string
+  default: ''
+
+# Log Collection
+- name: logUniversalFeedName
+  type: string
+  default: ''
+
+# Deployment Environment Configuration
+- name: environments
+  type: object
+  default:
+  - name: 'dev'
+    azureSubscription: ''
+    functionAppName: ''
+    resourceGroupName: ''
+
+
+stages:
+# ============================================================
+# STAGES
+# ============================================================
+- stage: "Initialize"
+  displayName: "Initialize Pipeline"
+  jobs:
+    - job: "PrintInitialization"
+      displayName: "Print Initialization"
+      steps:
+        - bash: |
+            echo "Initializing pipeline variables and configuration..."
+
+# ------------------------------------------------------------
+# Stage 1: Branch Name Validation (PR only)
+# ------------------------------------------------------------
+- ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
+  - template: ../stages/validation/windows-validate-branch-naming.yml
+    parameters:
+      stageName: ${{ parameters.stageName }}
+      displayName: ${{ parameters.displayName }}
+      jobName: ${{ parameters.jobName }}
+      jobDisplayName: ${{ parameters.jobDisplayName }}
+
+# ------------------------------------------------------------
+# Stage 2: Build & Test
+# ------------------------------------------------------------
+
+- ${{ if or(eq(variables['Build.Reason'], 'PullRequest'), and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))) }}:
+  - template: ../stages/build/windows-dotnet-build-and-test.yml
+    parameters:
+      dotnetVersion: ${{ parameters.dotnetVersion }}
+      buildConfiguration: ${{ parameters.buildConfiguration }}
+      projectPath: ${{ parameters.projectPath }}
+      testResultsPath: ${{ parameters.testResultsPath }}
+      coverageReportPath: ${{ parameters.coverageReportPath }}
+      archiveFileName: ${{ parameters.archiveFileName }}
+      artifactName: ${{ parameters.artifactName }}
+
+# ------------------------------------------------------------
+# Stage 3: Run Scan
+# ------------------------------------------------------------
+
+- ${{ if or(eq(variables['Build.Reason'], 'PullRequest'), and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))) }}:
+  - template: ../stages/scan/windows-quality-and-security-scan.yml
+    parameters:
+      dotnetVersion: ${{ parameters.dotnetVersion }}
+      sonarReportArtifactName: ${{ parameters.sonarReportArtifactName }}
+      sonarQubeServiceConnection: ${{ parameters.sonarQubeServiceConnection }}
+      sonarQubeProjectKey: ${{ parameters.sonarQubeProjectKey }}
+      sonarQubeUrl: ${{ parameters.sonarQubeUrl }}
+      sonarQubeToken: ${{ parameters.sonarQubeToken }}
+      branchFilter: ${{ parameters.branchFilter }}
+      coverageReportPath: ${{ parameters.coverageReportPath }}
+      testResultsPath: ${{ parameters.testResultsPath }}
+      wizClientId: ${{ parameters.wizClientId }}
+      wizClientSecret: ${{ parameters.wizClientSecret }}
+      wizServiceConnection: ${{ parameters.wizServiceConnection }}
+      wizScanPolicies: ${{ parameters.wizScanPolicies }}
+      wizFailOnSeverity: ${{ parameters.wizFailOnSeverity }}
+      wizPolicyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
+      wizSucceedOnFailures: ${{ parameters.wizSucceedOnFailures }}
+      wizContainerSucceedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
+      wizContainerimage: ${{ parameters.wizContainerimage }}
+      wizContainerpolicyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
+      wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
+      dockerBuildContext: ${{ parameters.dockerBuildContext }}
+      dockerRepository: ${{ parameters.dockerRepository }}
+      Dockerfile: ${{ parameters.Dockerfile }}
+      dockerTags: ${{ parameters.dockerTags }}
+      artifactName: ${{ parameters.artifactName }}
+      projectPath: ${{ parameters.projectPath }}
+      runWiz: ${{ parameters.runWiz }}
+
+# ------------------------------------------------------------
+# Stage 4: Release Tagging
+# ------------------------------------------------------------
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
+  - template: ../stages/release-tag/windows-release-tag.yml
+    parameters:
+      stageName: 'ReleaseStage'
+      displayName: ${{ parameters.releasedisplayName }}
+      releaseBranch: ${{ parameters.releaseBranch }} 
+      releaseTagBranch: ${{ parameters.releaseTagBranch }}
+      releaseType: ${{ parameters.releaseType }} 
+      universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+      universalPackageName: ${{ lower(parameters.universalPackageName) }}
+      packageDescription: ${{ parameters.packageDescription }}
+      artifactName: ${{ parameters.artifactName }}
+      gitUserName: ${{ parameters.gitUserName }}
+      gitUserEmail: ${{ parameters.gitUserEmail }}
+
+# ------------------------------------------------------------
+# Stage 5: Deploy to Azure Function App
+# ------------------------------------------------------------
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'dev') }}:
+      - template: ../stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
+          dependsOn: 'ReleaseStage'
+          stageDependsOnRelease: false
+          jobName: 'DeployFunctionApp'
+          jobDisplayName: 'Deploy Azure Function App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          appType: 'functionAppLinux'
+          appName: ${{ env.functionAppName }}
+          artifactName: 'Build-Drop'
+          packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'qa') }}:
+      - template: ../stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
+          dependsOn: 'Deploy_dev'
+          stageDependsOnRelease: true
+          jobName: 'DeployFunctionApp'
+          jobDisplayName: 'Deploy Azure Function App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          appType: 'functionAppLinux'
+          appName: ${{ env.functionAppName }}
+          artifactName: 'Build-Drop'
+          packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'uat') }}:
+      - template: ../stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
+          dependsOn: 'Deploy_qa'
+          stageDependsOnRelease: true
+          jobName: 'DeployFunctionApp'
+          jobDisplayName: 'Deploy Azure Function App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          appType: 'functionAppLinux'
+          appName: ${{ env.functionAppName }}
+          artifactName: 'Build-Drop'
+          packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+- ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(parameters.isProdDeployment, 'true')) }}:
+  - ${{ each env in parameters.environments }}:
+    - ${{ if eq(env.name, 'prod') }}:
+      - template: ../stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+        parameters:
+          stageName: 'Deploy_${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
+          dependsOn: ''
+          stageDependsOnRelease: false
+          jobName: 'DeployFunctionApp'
+          jobDisplayName: 'Deploy Azure Function App'
+          environment: ${{ env.name }}
+          azureSubscription: ${{ env.azureSubscription }}
+          appType: 'functionAppLinux'
+          appName: ${{ env.functionAppName }}
+          artifactName: 'Build-Drop'
+          packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
+          universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
+          universalPackageName: ${{ parameters.universalPackageName }}
+
+# ------------------------------------------------------------
+# Stage 6: Log Collection
+# ------------------------------------------------------------
+
+- ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+  - template: ../stages/logs/windows-collect-logs.yml
+    parameters:
+      stageName: 'CollectLogsStage'
+      stageDisplayName: 'Collect & Publish Pipeline Logs'
+      condition: 'succeededOrFailed()'
+      jobName: 'CollectLogsJob'
+      jobDisplayName: 'Collect Pipeline Logs'
+      logUniversalFeedName: ${{ parameters.logUniversalFeedName }}
+      logsPackageName: ${{ lower(parameters.universalPackageName) }}-pipeline-logs
+      packageDescription: 'Pipeline Logs for ${{ lower(parameters.universalPackageName) }}'
