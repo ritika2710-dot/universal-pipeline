@@ -1,0 +1,105 @@
+# templates/stages/logs/windows-collect-logs-stage.yml
+# Collects all pipeline logs and publishes them to Universal Feed
+# Runs after all stages complete (succeededOrFailed) for troubleshooting and audit
+
+parameters:
+  - name: stageName
+    type: string
+    default: 'CollectLogsStage'
+
+  - name: stageDisplayName
+    type: string
+    default: 'Collect & Publish Run Logs (ZIP)'
+
+  - name: condition
+    type: string
+    default: 'succeededOrFailed()'
+
+  - name: jobName
+    type: string
+    default: 'CollectLogsJob'
+
+  - name: jobDisplayName
+    type: string
+    default: 'Collect logs'
+
+  - name: logUniversalFeedName
+    type: string
+    default: ''
+
+  - name: logsPackageName
+    type: string
+    default: 'pipeline-logs'
+
+  - name: logsArtifactName
+    type: string
+    default: 'run-logs'
+
+  - name: packageDescription
+    type: string
+    default: 'Pipeline logs for build'
+
+  - name: dependsOn
+    type: object
+    default: 
+      - 'ReleaseStage'
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.stageDisplayName }}
+    jobs:
+      - job: ${{ parameters.jobName }}
+        displayName: ${{ parameters.jobDisplayName }}
+        condition: ${{ parameters.condition }}
+        steps:
+          # Download complete pipeline logs ZIP via Azure DevOps REST API (requires System.AccessToken)
+          - powershell: |
+              $ErrorActionPreference = "Stop"
+              $orgUrl  = "$(System.CollectionUri)"
+              $project = "$(System.TeamProject)"
+              $buildId = "$(Build.BuildId)"
+              $uri  = "$orgUrl$project/_apis/build/builds/$buildId/logs?api-version=7.1"
+              $out  = "$(Pipeline.Workspace)\run-logs-$buildId.zip"
+
+              Write-Host "Downloading logs ZIP for build $buildId"
+              Write-Host "API endpoint: $uri"
+
+              # Authenticate with bearer token (automatically provided by Azure Pipelines)
+              $headers = @{
+                "Authorization" = "Bearer $(System.AccessToken)"
+                "Accept"        = "application/zip"
+              }
+
+              # Invoke REST API to get all logs as ZIP
+              Invoke-RestMethod -Method GET -Uri $uri -Headers $headers -OutFile $out -ErrorAction Stop
+              Write-Host "Saved logs ZIP: $out"
+
+              # Verify file exists and has content
+              if (Test-Path $out) {
+                $size = (Get-Item $out).Length
+                Write-Host "Downloaded logs size: $size bytes"
+              } else {
+                Write-Error "Failed to download logs ZIP"
+                exit 1
+              }
+
+              # Prepare staging directory for Universal Package publishing
+              $pkgDir = "$(Build.ArtifactStagingDirectory)\universal-logs-package"
+              New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
+              Copy-Item $out -Destination (Join-Path $pkgDir "run-logs-$buildId.zip") -Force
+              Write-Host "Staged logs for Universal Feed packaging"
+            displayName: "Download and stage logs ZIP"
+
+          # Publish logs ZIP to Universal Feed with build ID version for traceability
+          - task: UniversalPackages@0
+            displayName: 'Publish Pipeline Logs Universal Package'
+            condition: ${{ parameters.condition }}
+            inputs:
+              command: 'publish'
+              feedsToUse: 'internal'
+              publishDirectory: '$(Build.ArtifactStagingDirectory)\universal-logs-package'
+              vstsFeedPublish: '${{ parameters.logUniversalFeedName }}'
+              vstsFeedPackagePublish: '${{ lower(parameters.logsPackageName) }}'
+              versionOption: 'custom'
+              versionPublish: '1.0.$(Build.BuildId)'
+              packagePublishDescription: '${{ parameters.packageDescription }}'
