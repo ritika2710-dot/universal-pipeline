@@ -33,7 +33,7 @@ parameters:
 
 - name: projectPath
   type: string
-  default: 'SampleBot.csproj'
+  default: 'MyApp.csproj'
 
 - name: testResultsPath
   type: string
