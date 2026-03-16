@@ -278,7 +278,7 @@ stages:
 # ------------------------------------------------------------
 
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
-  - template: ../stages/release-tag/windows-release-tag-new.yml
+  - template: ../stages/release/windows-release-tag-new.yml
     parameters:
       stageName: 'ReleaseStage'
       displayName: ${{ parameters.releasedisplayName }}
