@@ -1,0 +1,97 @@
+# templates/validate-branch-naming.yaml
+# Enforces GitFlow branching rules for Pull Requests
+# Fails PR if merge doesn't follow approved patterns
+
+parameters:
+  - name: stageName
+    type: string
+    default: 'EnforceBranchNamingStage'
+
+  - name: displayName
+    type: string
+    default: 'Stage - Enforce Branch Naming (PRs Only)'
+
+  - name: jobName
+    type: string
+    default: 'EnforceBranchNaming'
+
+  - name: jobDisplayName
+    type: string
+    default: 'Validate Branch Naming Convention'
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.displayName }}
+    condition: eq(variables['Build.Reason'], 'PullRequest')  # Only runs for PRs, not branch commits
+    jobs:
+      - job: ${{ parameters.jobName }}
+        displayName: ${{ parameters.jobDisplayName }}
+        
+        steps:
+          - powershell: |
+              # Validate PR source → target branch merge follows GitFlow rules
+              # This prevents accidental merges like feature → main (should go to develop first)
+              
+              Write-Host "Build.SourceBranch: $(Build.SourceBranch)"
+              Write-Host "PR Source: $(System.PullRequest.SourceBranch)"
+              Write-Host "PR Target: $(System.PullRequest.TargetBranch)"
+
+              $srcBranch = "$(System.PullRequest.SourceBranch)"
+              $tgtBranch = "$(System.PullRequest.TargetBranch)"
+
+              # Strip 'refs/heads/' prefix (e.g., refs/heads/main → main)
+              $srcBranch = $srcBranch -replace 'refs/heads/', ''
+              $tgtBranch = $tgtBranch -replace 'refs/heads/', ''
+
+              Write-Host "Normalized Source: $srcBranch"
+              Write-Host "Normalized Target: $tgtBranch"
+
+              # Guard clause: both branches must exist
+              if ([string]::IsNullOrWhiteSpace($srcBranch) -or [string]::IsNullOrWhiteSpace($tgtBranch)) {
+                Write-Host "Missing PR branch info. Ensure this stage runs only for PRs."
+                exit 1
+              }
+
+              # Approved GitFlow patterns (early exit on first match)
+              # Pattern 1: features go to develop (feature/X → develop)
+              if ($srcBranch -match '^feature/.+$' -and $tgtBranch -eq 'develop') {
+                Write-Host "Allowed: feature/* -> develop"
+                exit 0
+              }
+
+              # Pattern 2: develop release to main (develop → main)
+              if ($srcBranch -eq 'develop' -and $tgtBranch -eq 'main') {
+                Write-Host "Allowed: develop -> main"
+                exit 0
+              }
+
+              # Pattern 3: hotfix for production (hotfix/* → main)
+              if ($srcBranch -match '^hotfix/.+$' -and $tgtBranch -eq 'main') {
+                Write-Host "Allowed: hotfix/* -> main"
+                exit 0
+              }
+
+              # Pattern 4: hotfix also to develop (hotfix/* → develop)
+              if ($srcBranch -match '^hotfix/.+$' -and $tgtBranch -eq 'develop') {
+                Write-Host "Allowed: hotfix/* -> develop"
+                exit 0
+              }
+
+              # Pattern 5: backport after release (main → develop)
+              if ($srcBranch -eq 'main' -and $tgtBranch -eq 'develop') {
+                Write-Host "Allowed: main -> develop"
+                exit 0
+              }
+
+              # No pattern matched - reject the PR
+              Write-Host "INVALID PR MERGE:"
+              Write-Host "Source: $srcBranch"
+              Write-Host "Target: $tgtBranch"
+              Write-Host "Allowed:"
+              Write-Host "  - feature/*   -> develop"
+              Write-Host "  - develop     -> main"
+              Write-Host "  - hotfix/*    -> main"
+              Write-Host "  - hotfix/*    -> develop"
+              Write-Host "  - main        -> develop"
+              exit 1
+            displayName: 'Validate allowed PR source → target rules'
