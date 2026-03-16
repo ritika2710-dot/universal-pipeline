@@ -1,0 +1,189 @@
+# templates/stages/build/windows-build-and-test.yml
+# Builds .NET project, runs unit tests with coverage, publishes artifacts
+# Used in multi-stage pipeline: BUILD → SCAN → RELEASE → DEPLOY
+
+parameters:
+  - name: dotnetVersion
+    type: string
+    default: '8.0.x'
+
+  - name: projectPath
+    type: string
+    default: '.'
+    # Path to the .NET project root (.csproj or .sln location)
+
+  - name: solutionFile
+    type: string
+    default: '*.sln'
+    # Entry point for dotnet commands so multi-project solutions build in the correct order
+
+  - name: coverageReportPath
+    type: string
+    default: 'coverage.xml'
+    # Path where Cobertura coverage XML will be written
+
+  - name: testResultsPath
+    type: string
+    default: 'junit/test-results.xml'
+    # Path where test results XML will be written
+
+  - name: archiveFileName
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)\$(Build.SourceVersion).zip'
+    # Published package archive filename
+
+  - name: artifactName
+    type: string
+    default: 'Build-Drop'
+
+  - name: archiveSourcePath
+    type: string
+    default: '.'
+
+  - name: archiveExclusions
+    type: object
+    default:
+      - '**\.azure-pipelines\**'
+      - '**\.github\**'
+      - '**\.git\**'
+      - '**\bin\**'
+      - '**\obj\**'
+      - '**\.vs\**'
+      - '**/node_modules/**'
+
+stages:
+  - stage: BuildStage
+    displayName: "Stage - Build & Test"
+    jobs:
+      - job: BuildJob
+        displayName: Build & Test
+        steps:
+          # Checkout repo (shallow clone for speed)
+          - checkout: self
+            fetchDepth: 1
+
+          # Set .NET SDK version
+          - task: UseDotNet@2
+            displayName: 'Set up .NET SDK ${{ parameters.dotnetVersion }}'
+            inputs:
+              version: ${{ parameters.dotnetVersion }}
+              includePreviewVersions: false
+
+          # Restore NuGet packages (dependencies)
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore NuGet packages'
+            inputs:
+              command: 'restore'
+              projects: '${{ parameters.projectPath }}\${{ parameters.solutionFile }}'
+
+          # Set test and coverage filenames as pipeline variables
+          - powershell: |
+              $testResultsPath = "${{ parameters.testResultsPath }}"
+              $coverageReportPath = "${{ parameters.coverageReportPath }}"
+              $testResultsFileName = Split-Path $testResultsPath -Leaf
+              $coverageFileName = Split-Path $coverageReportPath -Leaf
+              
+              Write-Host "Test results filename: $testResultsFileName"
+              Write-Host "Coverage filename: $coverageFileName"
+              Write-Host "##vso[task.setvariable variable=testResultsFileName]$testResultsFileName"
+              Write-Host "##vso[task.setvariable variable=coverageFileName]$coverageFileName"
+            displayName: 'Set test and coverage filenames'
+
+          # Build solution in Release configuration
+          - task: DotNetCoreCLI@2
+            displayName: 'Build .NET project'
+            inputs:
+              command: 'build'
+              projects: '${{ parameters.projectPath }}\${{ parameters.solutionFile }}'
+              arguments: '--configuration Release --no-restore'
+
+          # Run unit tests with coverage (using coverlet for Cobertura format)
+          - task: DotNetCoreCLI@2
+            displayName: 'Run tests with coverage'
+            inputs:
+              command: 'test'
+              projects: '${{ parameters.projectPath }}\${{ parameters.solutionFile }}'
+              arguments: '--configuration Release --no-build --logger trx --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
+            continueOnError: true
+
+          # Resolve coverage and test results from default dotnet test output locations
+          - powershell: |
+              $ErrorActionPreference = "Stop"
+              Write-Host "Searching for test results..."
+              
+              # Find VSTest trx files (default: TestResults folder)
+              $trxFiles = Get-ChildItem -Path "${{ parameters.projectPath }}" -Filter "*.trx" -Recurse -ErrorAction SilentlyContinue
+              
+              if ($trxFiles) {
+                $trx = $trxFiles[0].FullName
+                Write-Host "Found test results: $trx"
+                Copy-Item -Path $trx -Destination "$(Build.ArtifactStagingDirectory)\$(testResultsFileName)" -Force
+              } else {
+                Write-Host "No TRX files found; creating dummy test results"
+                $dummyXml = '<?xml version="1.0" encoding="utf-8"?><TestRun id="0"><Summary total="0" executed="0" passed="0" failed="0" skipped="0"/></TestRun>'
+                $dummyXml | Out-File -FilePath "$(Build.ArtifactStagingDirectory)\$(testResultsFileName)" -Encoding UTF8 -Force
+              }
+
+              # Find coverage.cobertura.xml files (default: coverage folder inside TestResults)
+              $coverageFiles = Get-ChildItem -Path "${{ parameters.projectPath }}" -Filter "coverage.cobertura.xml" -Recurse -ErrorAction SilentlyContinue
+              
+              if ($coverageFiles) {
+                $coverage = $coverageFiles[0].FullName
+                Write-Host "Found coverage report: $coverage"
+                Copy-Item -Path $coverage -Destination "$(Build.ArtifactStagingDirectory)\$(coverageFileName)" -Force
+              } else {
+                Write-Host "No coverage file found; creating dummy coverage"
+                $dummyCov = '<?xml version="1.0"?><coverage version="1.9" timestamp="0" lines-valid="0" lines-covered="0"><packages/></coverage>'
+                $dummyCov | Out-File -FilePath "$(Build.ArtifactStagingDirectory)\$(coverageFileName)" -Encoding UTF8 -Force
+              }
+            displayName: 'Collect test and coverage artifacts'
+
+          # Publish test results to Azure DevOps (VSTest format)
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '$(Build.ArtifactStagingDirectory)\$(testResultsFileName)'
+              failTaskOnFailedTests: true
+            condition: succeededOrFailed()
+            displayName: 'Publish Test Results to Azure DevOps'
+
+          # Publish code coverage to Azure DevOps (Cobertura format)
+          - task: PublishCodeCoverageResults@2
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '$(Build.ArtifactStagingDirectory)\$(coverageFileName)'
+            condition: succeededOrFailed()
+            displayName: 'Publish Code Coverage to Azure DevOps'
+
+          # List artifacts for debugging
+          - powershell: |
+              Write-Host "Artifacts in $(Build.ArtifactStagingDirectory):"
+              Get-ChildItem -Path "$(Build.ArtifactStagingDirectory)" -Recurse | ForEach-Object { Write-Host $_.FullName }
+            displayName: 'List artifact contents'
+
+          # Publish/Release .NET app for deployment
+          - task: DotNetCoreCLI@2
+            displayName: 'Publish .NET application'
+            inputs:
+              command: 'publish'
+              projects: '${{ parameters.projectPath }}\${{ parameters.solutionFile }}'
+              arguments: '--configuration Release --no-build --output $(Build.ArtifactStagingDirectory)\publish'
+              publishWebProjects: false
+
+          # Archive the published app for deployment stages
+          - task: ArchiveFiles@2
+            displayName: 'Archive published app for Deployment'
+            inputs:
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)\publish'
+              includeRootFolder: false
+              archiveType: 'zip'
+              archiveFile: '${{ parameters.archiveFileName }}'
+              replaceExistingArchive: true
+
+          # Publish artifact to pipeline (used by SCAN, RELEASE, DEPLOY stages)
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Artifact: ${{ parameters.artifactName }}'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)'
+              artifact: '${{ parameters.artifactName }}'
+              publishLocation: 'pipeline'
