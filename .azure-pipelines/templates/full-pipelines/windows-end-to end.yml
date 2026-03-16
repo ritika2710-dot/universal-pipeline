@@ -225,7 +225,7 @@ stages:
 # Stage 1: Branch Name Validation (PR only)
 # ------------------------------------------------------------
 - ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
-  - template: ../stages/validation/windows-validate-branch-naming.yml
+  - template: ../stages/validation/windows-validate-branch-naming-new.yml
     parameters:
       stageName: ${{ parameters.stageName }}
       displayName: ${{ parameters.displayName }}
