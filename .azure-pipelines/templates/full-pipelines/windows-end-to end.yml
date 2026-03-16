@@ -1,5 +1,5 @@
-# Full End-to-End Dotnet Pipeline
-# Path: .azure-pipelines/templates/full-pipelines/windows-end-to-end.yml
+# Full End-to-End Dotnet Pipeline 
+# Path: .azure-pipelines/templates/full-pipelines/dotnet-azure-functions-end-to-end.yml
 
 parameters:
 
@@ -33,11 +33,7 @@ parameters:
 
 - name: projectPath
   type: string
-  default: '.'
-
-- name: solutionFile
-  type: string
-  default: '*.sln'
+  default: 'SampleBot.csproj'
 
 - name: testResultsPath
   type: string
@@ -245,7 +241,6 @@ stages:
     parameters:
       dotnetVersion: ${{ parameters.dotnetVersion }}
       projectPath: ${{ parameters.projectPath }}
-      solutionFile: ${{ parameters.solutionFile }}
       testResultsPath: ${{ parameters.testResultsPath }}
       coverageReportPath: ${{ parameters.coverageReportPath }}
       archiveFileName: ${{ parameters.archiveFileName }}

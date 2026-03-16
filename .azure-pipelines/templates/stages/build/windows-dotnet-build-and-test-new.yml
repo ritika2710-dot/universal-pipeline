@@ -9,8 +9,8 @@ parameters:
 
   - name: projectPath
     type: string
-    default: '.'
-    # Path to the .NET project root directory (.csproj or .sln location)
+    default: 'SampleBot.csproj'
+    # Path to the .NET project root (.csproj or .sln location)
 
   - name: solutionFile
     type: string
@@ -74,7 +74,7 @@ stages:
             displayName: 'Restore NuGet packages'
             inputs:
               command: 'restore'
-              projects: '${{ parameters.projectPath }}\${{ parameters.solutionFile }}'
+              projects: '${{ parameters.projectPath }}'
 
           # Set test and coverage filenames as pipeline variables
           - powershell: |
