@@ -308,7 +308,7 @@ stages:
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
   - ${{ each env in parameters.environments }}:
     - ${{ if eq(env.name, 'dev') }}:
-      - template: ../stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+      - template: ../stages/deploy/windows-deploy-on-azure-webapp-app-service-new.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
           stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
@@ -328,7 +328,7 @@ stages:
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
   - ${{ each env in parameters.environments }}:
     - ${{ if eq(env.name, 'qa') }}:
-      - template: ../stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+      - template: ../stages/deploy/windows-deploy-on-azure-webapp-app-service-new.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
           stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
@@ -348,7 +348,7 @@ stages:
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
   - ${{ each env in parameters.environments }}:
     - ${{ if eq(env.name, 'uat') }}:
-      - template: ../stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+      - template: ../stages/deploy/windows-deploy-on-azure-webapp-app-service-new.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
           stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
@@ -368,7 +368,7 @@ stages:
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(parameters.isProdDeployment, 'true')) }}:
   - ${{ each env in parameters.environments }}:
     - ${{ if eq(env.name, 'prod') }}:
-      - template: ../stages/deploy/windows-deploy-on-azure-webapp-functionapp.yml
+      - template: ../stages/deploy/windows-deploy-on-azure-webapp-app-service-new.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
           stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
