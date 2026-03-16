@@ -269,14 +269,6 @@ stages:
       wizFailOnSeverity: ${{ parameters.wizFailOnSeverity }}
       wizPolicyHitsOnly: ${{ parameters.wizPolicyHitsOnly }}
       wizSucceedOnFailures: ${{ parameters.wizSucceedOnFailures }}
-      wizContainerSucceedOnFailures: ${{ parameters.wizContainerSucceedOnFailures }}
-      wizContainerimage: ${{ parameters.wizContainerimage }}
-      wizContainerpolicyHitsOnly: ${{ parameters.wizContainerpolicyHitsOnly }}
-      wizContainerfileHashesScan: ${{ parameters.wizContainerfileHashesScan }}
-      dockerBuildContext: ${{ parameters.dockerBuildContext }}
-      dockerRepository: ${{ parameters.dockerRepository }}
-      Dockerfile: ${{ parameters.Dockerfile }}
-      dockerTags: ${{ parameters.dockerTags }}
       artifactName: ${{ parameters.artifactName }}
       projectPath: ${{ parameters.projectPath }}
       runWiz: ${{ parameters.runWiz }}
