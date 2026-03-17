@@ -180,7 +180,7 @@ parameters:
   type: string
   default: 'ado-build-service-bot@unilever.com'
 
-# Deployment (Azure Function App specific)
+# Deployment (Azure Web App)
 - name: isProdDeployment
   type: string 
   default: 'false'
@@ -189,7 +189,7 @@ parameters:
   type: string
   default: ''
 
-- name: functionAppName
+- name: webAppName
   type: string
   default: ''
 
@@ -204,7 +204,7 @@ parameters:
   default:
   - name: 'dev'
     azureSubscription: ''
-    functionAppName: ''
+    webAppName: ''
     resourceGroupName: ''
 
 
@@ -293,7 +293,7 @@ stages:
       gitUserEmail: ${{ parameters.gitUserEmail }}
 
 # ------------------------------------------------------------
-# Stage 5: Deploy to Azure Function App
+# Stage 5: Deploy to Azure Web App
 # ------------------------------------------------------------
 
 - ${{ if and(ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/develop')) }}:
@@ -310,7 +310,7 @@ stages:
           environment: ${{ env.name }}
           azureSubscription: ${{ env.azureSubscription }}
           appType: 'webApp'
-          appName: ${{ env.functionAppName }}
+          appName: ${{ env.webAppName }}
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
           universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
@@ -330,7 +330,7 @@ stages:
           environment: ${{ env.name }}
           azureSubscription: ${{ env.azureSubscription }}
           appType: 'webApp'
-          appName: ${{ env.functionAppName }}
+          appName: ${{ env.webAppName }}
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
           universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
@@ -350,7 +350,7 @@ stages:
           environment: ${{ env.name }}
           azureSubscription: ${{ env.azureSubscription }}
           appType: 'webApp'
-          appName: ${{ env.functionAppName }}
+          appName: ${{ env.webAppName }}
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
           universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
@@ -370,7 +370,7 @@ stages:
           environment: ${{ env.name }}
           azureSubscription: ${{ env.azureSubscription }}
           appType: 'webApp'
-          appName: ${{ env.functionAppName }}
+          appName: ${{ env.webAppName }}
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
           universalFeedNameApp: ${{ parameters.universalFeedNameApp }}
