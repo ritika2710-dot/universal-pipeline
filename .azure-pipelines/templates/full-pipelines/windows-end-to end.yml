@@ -302,14 +302,14 @@ stages:
       - template: ../stages/deploy/windows-deploy-on-azure-webapp-app-service-new.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
-          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
           dependsOn: 'ReleaseStage'
           stageDependsOnRelease: false
-          jobName: 'DeployFunctionApp'
-          jobDisplayName: 'Deploy Azure Function App'
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
           azureSubscription: ${{ env.azureSubscription }}
-          appType: 'functionAppLinux'
+          appType: 'webApp'
           appName: ${{ env.functionAppName }}
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
@@ -322,14 +322,14 @@ stages:
       - template: ../stages/deploy/windows-deploy-on-azure-webapp-app-service-new.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
-          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
           dependsOn: 'Deploy_dev'
           stageDependsOnRelease: true
-          jobName: 'DeployFunctionApp'
-          jobDisplayName: 'Deploy Azure Function App'
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
           azureSubscription: ${{ env.azureSubscription }}
-          appType: 'functionAppLinux'
+          appType: 'webApp'
           appName: ${{ env.functionAppName }}
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
@@ -342,14 +342,14 @@ stages:
       - template: ../stages/deploy/windows-deploy-on-azure-webapp-app-service-new.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
-          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
           dependsOn: 'Deploy_qa'
           stageDependsOnRelease: true
-          jobName: 'DeployFunctionApp'
-          jobDisplayName: 'Deploy Azure Function App'
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
           azureSubscription: ${{ env.azureSubscription }}
-          appType: 'functionAppLinux'
+          appType: 'webApp'
           appName: ${{ env.functionAppName }}
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
@@ -362,14 +362,14 @@ stages:
       - template: ../stages/deploy/windows-deploy-on-azure-webapp-app-service-new.yml
         parameters:
           stageName: 'Deploy_${{ env.name }}'
-          stageDisplayName: 'Deploy to Azure Function App - ${{ env.name }}'
+          stageDisplayName: 'Deploy to Azure Web App - ${{ env.name }}'
           dependsOn: ''
           stageDependsOnRelease: false
-          jobName: 'DeployFunctionApp'
-          jobDisplayName: 'Deploy Azure Function App'
+          jobName: 'DeployWebApp'
+          jobDisplayName: 'Deploy Azure Web App'
           environment: ${{ env.name }}
           azureSubscription: ${{ env.azureSubscription }}
-          appType: 'functionAppLinux'
+          appType: 'webApp'
           appName: ${{ env.functionAppName }}
           artifactName: 'Build-Drop'
           packagePath: '$(Build.ArtifactStagingDirectory)/Build-Drop/$(Build.SourceVersion).zip'
