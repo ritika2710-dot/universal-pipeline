@@ -9,13 +9,18 @@ parameters:
 
   - name: projectPath
     type: string
-    default: 'SampleBot.csproj'
-    # Path to the .NET project root (.csproj or .sln location)
+    default: '**/*.csproj'
+    # Glob pattern to match .csproj files for restore, or path to .sln file
+
+  - name: testProjectPath
+    type: string
+    default: '**/*.Tests.csproj'
+    # Glob pattern to match test project(s)
 
   - name: solutionFile
     type: string
-    default: '*.sln'
-    # Entry point for dotnet commands so multi-project solutions build in the correct order
+    default: ''
+    # Optional: path to .sln file. When provided, used for build/test/publish instead of projectPath
 
   - name: coverageReportPath
     type: string
@@ -69,12 +74,15 @@ stages:
               version: ${{ parameters.dotnetVersion }}
               includePreviewVersions: false
 
-          # Restore NuGet packages (dependencies)
+          # Restore NuGet packages for all projects (main + test)
           - task: DotNetCoreCLI@2
             displayName: 'Restore NuGet packages'
             inputs:
               command: 'restore'
-              projects: '${{ parameters.projectPath }}'
+              ${{ if ne(parameters.solutionFile, '') }}:
+                projects: '${{ parameters.solutionFile }}'
+              ${{ else }}:
+                projects: '**/*.csproj'
 
           # Set test and coverage filenames as pipeline variables
           - powershell: |
@@ -94,7 +102,10 @@ stages:
             displayName: 'Build .NET project'
             inputs:
               command: 'build'
-              projects: '${{ parameters.projectPath }}\${{ parameters.solutionFile }}'
+              ${{ if ne(parameters.solutionFile, '') }}:
+                projects: '${{ parameters.solutionFile }}'
+              ${{ else }}:
+                projects: '${{ parameters.projectPath }}'
               arguments: '--configuration Release --no-restore'
 
           # Run unit tests with coverage (using coverlet for Cobertura format)
@@ -102,8 +113,8 @@ stages:
             displayName: 'Run tests with coverage'
             inputs:
               command: 'test'
-              projects: '${{ parameters.projectPath }}\${{ parameters.solutionFile }}'
-              arguments: '--configuration Release --no-build --logger trx --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
+              projects: '${{ parameters.testProjectPath }}'
+              arguments: '--configuration Release --logger trx --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
             continueOnError: true
 
           # Resolve coverage and test results from default dotnet test output locations
@@ -112,7 +123,7 @@ stages:
               Write-Host "Searching for test results..."
               
               # Find VSTest trx files (default: TestResults folder)
-              $trxFiles = Get-ChildItem -Path "${{ parameters.projectPath }}" -Filter "*.trx" -Recurse -ErrorAction SilentlyContinue
+              $trxFiles = Get-ChildItem -Path "$(Build.SourcesDirectory)" -Filter "*.trx" -Recurse -ErrorAction SilentlyContinue
               
               if ($trxFiles) {
                 $trx = $trxFiles[0].FullName
@@ -125,7 +136,7 @@ stages:
               }
 
               # Find coverage.cobertura.xml files (default: coverage folder inside TestResults)
-              $coverageFiles = Get-ChildItem -Path "${{ parameters.projectPath }}" -Filter "coverage.cobertura.xml" -Recurse -ErrorAction SilentlyContinue
+              $coverageFiles = Get-ChildItem -Path "$(Build.SourcesDirectory)" -Filter "coverage.cobertura.xml" -Recurse -ErrorAction SilentlyContinue
               
               if ($coverageFiles) {
                 $coverage = $coverageFiles[0].FullName
@@ -166,7 +177,7 @@ stages:
             displayName: 'Publish .NET application'
             inputs:
               command: 'publish'
-              projects: '${{ parameters.projectPath }}\${{ parameters.solutionFile }}'
+              projects: '${{ parameters.projectPath }}'
               arguments: '--configuration Release --no-build --output $(Build.ArtifactStagingDirectory)\publish'
               publishWebProjects: false
 
